@@ -1,0 +1,3087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUPER STORE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <!-- Dexie.js — IndexedDB wrapper for local database -->
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    /* ─── RESET & VARIABLES ─────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black:      #0a0a0a;
+      --white:      #f5f5f0;
+      --green:      #b5ff00;
+      --dark-green: #7db800;
+      --grey:       #1a1a1a;
+      --mid:        #2e2e2e;
+      --muted:      #888;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ─── PAGE SYSTEM ────────────────────────────────────── */
+    .page           { display: none; }
+    .page.active    { display: block; }
+
+    /* ─── NAV ───────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.2rem 5vw;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .nav-left { display: flex; align-items: center; gap: 1rem; }
+
+    /* Hamburger */
+    .hamburger {
+      display: flex; flex-direction: column; justify-content: center; gap: 5px;
+      width: 36px; height: 36px; padding: 4px;
+      background: none; border: none; cursor: pointer; z-index: 300;
+    }
+    .hamburger span {
+      display: block; width: 100%; height: 2px;
+      background: var(--white); border-radius: 2px;
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      transform-origin: center;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg);  background: var(--green); }
+    .hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); background: var(--green); }
+
+    /* Logo */
+    .nav-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem; letter-spacing: 0.2em; color: var(--green);
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .nav-logo:hover { opacity: 0.8; }
+
+    /* Back / Forward arrows */
+    .nav-arrows { display: flex; gap: 0.3rem; align-items: center; }
+    .nav-arrow {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--white); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; line-height: 1; transition: all 0.2s;
+    }
+    .nav-arrow:hover:not(:disabled) { background: rgba(181,255,0,0.12); border-color: var(--green); color: var(--green); }
+    .nav-arrow:disabled              { opacity: 0.25; cursor: not-allowed; }
+
+    /* Nav links */
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--white); text-decoration: none;
+      font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase;
+      opacity: 0.7; transition: opacity 0.2s;
+    }
+    .nav-links a:hover { opacity: 1; color: var(--green); }
+
+    /* User icon */
+    .nav-user { position: relative; }
+    .user-icon-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(255,255,255,0.07); border: 1.5px solid rgba(255,255,255,0.15);
+      cursor: pointer; color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .user-icon-btn:hover { background: rgba(181,255,0,0.12); border-color: var(--green); color: var(--green); }
+    .user-icon-btn svg   { width: 18px; height: 18px; fill: currentColor; }
+
+    /* User dropdown */
+    .user-dropdown {
+      position: absolute; top: calc(100% + 12px); right: 0; width: 220px;
+      background: #161616; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      opacity: 0; pointer-events: none;
+      transform: translateY(-8px) scale(0.97); transform-origin: top right;
+      transition: all 0.22s cubic-bezier(0.4,0,0.2,1); z-index: 400;
+    }
+    .user-dropdown.open { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
+
+    .user-dropdown-menu { list-style: none; padding: 0.5rem 0; }
+    .user-dropdown-menu a {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.65rem 1.2rem; text-decoration: none;
+      color: var(--white); font-size: 0.85rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .user-dropdown-menu a:hover           { background: rgba(181,255,0,0.06); color: var(--green); }
+    .drop-icon                             { font-size: 1rem; width: 20px; text-align: center; }
+    .user-dropdown-divider                 { height: 1px; background: rgba(255,255,255,0.06); margin: 0.3rem 0; }
+    .user-dropdown-menu .sign-out a        { color: #ff5555; }
+    .user-dropdown-menu .sign-out a:hover  { background: rgba(255,85,85,0.07); color: #ff5555; }
+
+    /* Nav dot & menu dots */
+    .nav-dot {
+      position: absolute; top: 0; right: 0;
+      width: 10px; height: 10px; background: var(--green);
+      border-radius: 50%; border: 2px solid #161616;
+      display: none; box-shadow: 0 0 8px rgba(181,255,0,0.5);
+    }
+    .menu-cart-wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .menu-dot {
+      display: inline-block; width: 8px; height: 8px;
+      background: var(--green); border-radius: 50%;
+      box-shadow: 0 0 8px rgba(181,255,0,0.5);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .menu-dot.active   { opacity: 1; }
+    .menu-wish-dot {
+      display: inline-block; width: 8px; height: 8px;
+      background: #ff5050; border-radius: 50%;
+      box-shadow: 0 0 8px rgba(255,80,80,0.5);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .menu-wish-dot.active { opacity: 1; }
+
+    /* ─── SIDEBAR ────────────────────────────────────────── */
+    .sidebar-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      z-index: 250; opacity: 0; pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+    .sidebar-overlay.active { opacity: 1; pointer-events: all; }
+
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: 300px; max-width: 85vw; height: 100vh;
+      background: #111; border-right: 1px solid rgba(181,255,0,0.12);
+      z-index: 300; transform: translateX(-100%);
+      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .sidebar-header {
+      padding: 1.4rem 1.8rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sidebar-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.2em; color: var(--green); }
+    .sidebar-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 1.4rem; cursor: pointer; padding: 4px; transition: color 0.2s;
+    }
+    .sidebar-close:hover { color: var(--green); }
+
+    .sidebar-menu { padding: 1.5rem 0; flex: 1; list-style: none; }
+    .sidebar-menu li {
+      opacity: 0; transform: translateX(-20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .sidebar.open .sidebar-menu li:nth-child(1) { opacity:1; transform:translateX(0); transition-delay:.10s; }
+    .sidebar.open .sidebar-menu li:nth-child(2) { opacity:1; transform:translateX(0); transition-delay:.17s; }
+    .sidebar.open .sidebar-menu li:nth-child(3) { opacity:1; transform:translateX(0); transition-delay:.24s; }
+    .sidebar.open .sidebar-menu li:nth-child(4) { opacity:1; transform:translateX(0); transition-delay:.31s; }
+    .sidebar.open .sidebar-menu li:nth-child(5) { opacity:1; transform:translateX(0); transition-delay:.38s; }
+    .sidebar.open .sidebar-menu li:nth-child(6) { opacity:1; transform:translateX(0); transition-delay:.45s; }
+
+    .sidebar-menu a {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.8rem; text-decoration: none;
+      color: var(--white); font-size: 0.95rem; letter-spacing: 0.04em;
+      border-left: 3px solid transparent;
+      transition: background 0.2s, color 0.2s, padding-left 0.2s;
+    }
+    .sidebar-menu a:hover { background: rgba(181,255,0,0.05); color: var(--green); border-left-color: var(--green); padding-left: 2.2rem; }
+    .sidebar-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0; transition: background 0.2s;
+    }
+    .sidebar-menu a:hover .sidebar-icon { background: rgba(181,255,0,0.15); }
+    .sidebar-menu-label { font-size: 0.9rem; }
+    .sidebar-menu-sub   { font-size: 0.7rem; color: var(--muted); display: block; margin-top: 1px; }
+    .sidebar-divider    { height: 1px; background: rgba(255,255,255,0.06); margin: 0.5rem 1.8rem; }
+    .sidebar-footer     { padding: 1.2rem 1.8rem; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.72rem; color: var(--muted); }
+
+    /* ─── T&C SIDEBAR BAR ────────────────────────────────── */
+    .sidebar-tnc-bar {
+      margin: 0 1.2rem 0.8rem;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(181,255,0,0.07) 0%, rgba(181,255,0,0.03) 100%);
+      border: 1px solid rgba(181,255,0,0.18);
+      overflow: hidden;
+    }
+    .sidebar-tnc-bar a {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 0.9rem 1.2rem; text-decoration: none;
+      color: var(--white); font-size: 0.9rem; letter-spacing: 0.03em;
+      border-left: 3px solid var(--green);
+      transition: background 0.2s, color 0.2s;
+    }
+    .sidebar-tnc-bar a:hover { background: rgba(181,255,0,0.08); color: var(--green); }
+    .sidebar-tnc-bar .sidebar-icon { background: rgba(181,255,0,0.12); }
+    .sidebar-tnc-bar .tnc-badge {
+      margin-left: auto; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+      background: rgba(181,255,0,0.15); color: var(--green); border: 1px solid rgba(181,255,0,0.3);
+      border-radius: 50px; padding: 0.2rem 0.6rem; white-space: nowrap;
+    }
+
+    /* ─── T&C MODAL ──────────────────────────────────────── */
+    .tnc-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .tnc-overlay.open { opacity: 1; pointer-events: all; }
+    .tnc-modal {
+      background: #111; border: 1px solid rgba(181,255,0,0.15);
+      border-radius: 24px; width: 100%; max-width: 640px;
+      max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+      transform: translateY(24px) scale(0.97); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .tnc-overlay.open .tnc-modal { transform: translateY(0) scale(1); }
+    .tnc-modal-header {
+      padding: 1.6rem 1.8rem 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-shrink: 0;
+    }
+    .tnc-modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.1em; color: var(--white); }
+    .tnc-modal-title span { color: var(--green); }
+    .tnc-modal-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; letter-spacing: 0.04em; }
+    .tnc-close {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: var(--muted); cursor: pointer;
+      width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0; transition: all 0.2s;
+    }
+    .tnc-close:hover { background: rgba(181,255,0,0.1); border-color: var(--green); color: var(--green); }
+    .tnc-body {
+      overflow-y: auto; padding: 1.4rem 1.8rem 1.8rem; flex: 1;
+      scrollbar-width: thin; scrollbar-color: rgba(181,255,0,0.3) transparent;
+    }
+    .tnc-body::-webkit-scrollbar { width: 4px; }
+    .tnc-body::-webkit-scrollbar-thumb { background: rgba(181,255,0,0.3); border-radius: 4px; }
+    .tnc-section { margin-bottom: 1.6rem; }
+    .tnc-section-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.12em;
+      color: var(--green); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .tnc-section-title::after { content:''; flex:1; height:1px; background: rgba(181,255,0,0.15); }
+    .tnc-section p { font-size: 0.83rem; color: rgba(245,245,240,0.72); line-height: 1.75; }
+    .tnc-highlight {
+      background: rgba(181,255,0,0.05); border-left: 3px solid var(--green);
+      border-radius: 0 10px 10px 0; padding: 0.8rem 1rem; margin-top: 0.8rem;
+      font-size: 0.8rem; color: var(--muted); line-height: 1.7;
+    }
+    .tnc-footer {
+      padding: 1rem 1.8rem 1.4rem; border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .tnc-footer-note { font-size: 0.72rem; color: var(--muted); }
+    .tnc-accept-btn {
+      padding: 0.65rem 1.6rem; border-radius: 50px;
+      background: var(--green); color: var(--black); font-size: 0.8rem;
+      letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700;
+      border: none; cursor: pointer; transition: opacity 0.2s, transform 0.2s;
+    }
+    .tnc-accept-btn:hover { opacity: 0.85; transform: scale(1.03); }
+
+    /* ─── HELP MODAL ─────────────────────────────────────── */
+    .help-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .help-overlay.open { opacity: 1; pointer-events: all; }
+    .help-modal {
+      background: #111; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px; width: 100%; max-width: 560px;
+      max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+      transform: translateY(24px) scale(0.97); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      overflow: hidden;
+    }
+    .help-overlay.open .help-modal { transform: translateY(0) scale(1); }
+    .help-modal-header {
+      padding: 1.6rem 1.8rem 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+    }
+    .help-modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.1em; color: var(--white); }
+    .help-modal-title span { color: var(--green); }
+    .help-modal-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.6; }
+    .help-close {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: var(--muted); cursor: pointer;
+      width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0; transition: all 0.2s;
+    }
+    .help-close:hover { background: rgba(181,255,0,0.1); border-color: var(--green); color: var(--green); }
+    .help-modal-body { 
+      padding: 1.4rem 1.8rem 1.8rem; 
+      display: flex; flex-direction: column; gap: 1rem; 
+      overflow-y: auto; flex: 1;
+      scrollbar-width: thin; scrollbar-color: rgba(181,255,0,0.3) transparent;
+    }
+    .help-modal-body::-webkit-scrollbar { width: 4px; }
+    .help-modal-body::-webkit-scrollbar-thumb { background: rgba(181,255,0,0.3); border-radius: 4px; }
+
+    /* ─── SHARED ─────────────────────────────────────────── */
+    .btn {
+      padding: 0.85rem 2rem; border-radius: 50px;
+      font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase;
+      text-decoration: none; cursor: pointer; transition: all 0.25s; display: inline-block;
+    }
+    .btn-primary  { background: var(--green); color: var(--black); font-weight: 600; border: 2px solid var(--green); }
+    .btn-primary:hover  { background: transparent; color: var(--green); }
+    .btn-outline  { background: transparent; color: var(--white); border: 2px solid rgba(255,255,255,0.2); }
+    .btn-outline:hover  { border-color: var(--green); color: var(--green); }
+
+    .section-label { font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--green); display: block; margin-bottom: 0.8rem; }
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.5rem,6vw,4.5rem); letter-spacing: 0.05em; line-height: 1; }
+    .section-header { text-align: center; margin-bottom: 4rem; }
+
+    footer {
+      padding: 2rem 5vw; border-top: 1px solid var(--mid);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+    }
+    .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.2em; color: var(--green); }
+    .footer-copy { font-size: 0.75rem; color: var(--muted); }
+
+    /* ─── TOAST ──────────────────────────────────────────── */
+    #toast-container {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 12px;
+      z-index: 9999; pointer-events: none;
+    }
+    .toast {
+      background: #111; border: 1px solid rgba(181,255,0,0.3);
+      border-radius: 50px; padding: 10px 24px 10px 14px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+      transform: translateY(20px); opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.4s;
+    }
+    .toast.show          { transform: translateY(0); opacity: 1; }
+    .toast-icon          { font-size: 1.2rem; width: 32px; height: 32px; background: rgba(181,255,0,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .toast-text          { font-size: 0.88rem; color: var(--white); }
+    .toast-text strong   { color: var(--green); }
+
+    /* ─── COVER / HOME ───────────────────────────────────── */
+    #cover {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+      position: relative; overflow: hidden; padding: 6rem 5vw 4rem;
+    }
+    #cover::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px; opacity: 0.4; pointer-events: none;
+    }
+
+    .blob {
+      position: absolute; border-radius: 50%;
+      filter: blur(80px); opacity: 0.18;
+      animation: float 8s ease-in-out infinite; pointer-events: none;
+    }
+    .blob-1 { width:500px; height:500px; background:var(--green);  top:-100px;  left:-150px; animation-delay:0s; }
+    .blob-2 { width:350px; height:350px; background:#00d4aa;       bottom:-80px; right:-100px; animation-delay:3s; }
+    .blob-3 { width:250px; height:250px; background:var(--green);  top:50%;     left:60%;    animation-delay:5s; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%       { transform: translateY(-30px) scale(1.05); }
+    }
+
+    .cover-eyebrow {
+      font-size: 0.75rem; letter-spacing: 0.35em; text-transform: uppercase; color: var(--green);
+      margin-bottom: 1.5rem; opacity: 0; animation: fadeUp 0.8s ease forwards 0.3s;
+    }
+    .cover-title {
+      font-family: 'Boogaloo', cursive;
+      font-size: clamp(5rem,18vw,13rem); line-height: 0.9; letter-spacing: -0.02em; color: var(--white);
+      position: relative; z-index: 1; opacity: 0; animation: fadeUp 0.9s ease forwards 0.5s;
+    }
+    .cover-title span { color: var(--green); display: inline-block; animation: wiggle 2.5s ease-in-out infinite 1.5s; }
+    .cover-sub {
+      margin-top: 2rem; font-size: clamp(1rem,2.5vw,1.25rem); color: var(--muted);
+      font-weight: 300; max-width: 480px; line-height: 1.7;
+      opacity: 0; animation: fadeUp 0.9s ease forwards 0.8s;
+    }
+    .cover-cta {
+      margin-top: 2.5rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;
+      opacity: 0; animation: fadeUp 0.9s ease forwards 1.1s;
+    }
+    .scroll-hint {
+      position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+      opacity: 0.4; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;
+      animation: bounce 2s ease-in-out infinite;
+    }
+    .scroll-hint::after { content: ''; width: 1px; height: 40px; background: var(--white); }
+
+    @keyframes fadeUp  { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes wiggle  { 0%,100% { transform:rotate(0deg); } 25% { transform:rotate(-2deg) scale(1.02); } 75% { transform:rotate(2deg) scale(1.02); } }
+    @keyframes bounce  { 0%,100% { transform:translateX(-50%) translateY(0);  } 50% { transform:translateX(-50%) translateY(8px); } }
+
+    /* ─── MONSTER SECTION ────────────────────────────────── */
+    #monster {
+      padding: 7rem 5vw; background: var(--grey);
+      position: relative; overflow: hidden;
+    }
+    #monster::before {
+      content: 'MONSTER';
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(8rem,25vw,22rem); color: rgba(181,255,0,0.03);
+      white-space: nowrap; pointer-events: none; letter-spacing: 0.1em;
+    }
+    .monster-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr));
+      gap: 1.5rem; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1;
+    }
+    .monster-card {
+      background: var(--black); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 20px; padding: 2rem 1.5rem 1.5rem;
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+      cursor: pointer; position: relative; overflow: hidden;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+    .monster-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(181,255,0,0.07), transparent 70%);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .monster-card:hover               { transform: translateY(-8px); border-color: var(--green); box-shadow: 0 20px 50px rgba(181,255,0,0.12); }
+    .monster-card:hover::before       { opacity: 1; }
+    .monster-card:hover .can          { transform: rotate(-4deg) scale(1.05); }
+
+    /* CSS can */
+    .can-wrap  { width:100px; height:140px; position:relative; display:flex; align-items:center; justify-content:center; }
+    .can {
+      width:72px; height:130px; border-radius:10px 10px 14px 14px;
+      position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: inset -6px 0 12px rgba(0,0,0,0.4), inset 6px 0 12px rgba(255,255,255,0.08), 4px 8px 24px rgba(0,0,0,0.6);
+      transition: transform 0.3s;
+    }
+    .can-original { background: linear-gradient(160deg,#1a1a1a 0%,#111 40%,#0d0d0d 100%); }
+    .can-ultra    { background: linear-gradient(160deg,#c0d8f0 0%,#9abcd8 40%,#7aa0c0 100%); }
+    .can-zero     { background: linear-gradient(160deg,#222 0%,#111 40%,#0d0d0d 100%); }
+    .can-mango    { background: linear-gradient(160deg,#ff8c00 0%,#e07000 40%,#c05800 100%); }
+    .can-top      { position:absolute; top:-8px; width:60px; height:16px; border-radius:50%; background:inherit; filter:brightness(1.3); }
+    .can-claw     { position:absolute; top:24px; font-size:2.2rem; font-weight:900; line-height:1; text-shadow:0 2px 6px rgba(0,0,0,0.5); }
+    .can-original .can-claw, .can-zero .can-claw { color: var(--green); }
+    .can-ultra .can-claw,    .can-mango .can-claw { color: #fff; }
+    .can-name-strip { position:absolute; bottom:18px; font-family:'Bebas Neue',sans-serif; font-size:0.65rem; letter-spacing:0.25em; }
+    .can-original .can-name-strip, .can-zero .can-name-strip { color: var(--green); }
+    .can-ultra .can-name-strip, .can-mango .can-name-strip    { color: #fff; }
+
+    .card-name { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:0.1em; color:var(--white); }
+    .card-desc { font-size:0.8rem; color:var(--muted); text-align:center; line-height:1.6; }
+    .card-tag  { font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.3rem 0.9rem; border-radius:50px; border:1px solid var(--green); color:var(--green); margin-top:auto; }
+
+    /* ─── SHOP PAGE ──────────────────────────────────────── */
+    #shop-page  { padding-top: 80px; min-height: 100vh; background: var(--black); }
+    .shop-hero  {
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg,#0a0a0a 0%,#111 50%,#0d1a00 100%);
+      padding: 4rem 5vw 3rem; border-bottom: 1px solid rgba(181,255,0,0.1);
+    }
+    .shop-hero::before {
+      content: 'SHOP'; position:absolute; right:-2rem; top:50%; transform:translateY(-50%);
+      font-family:'Bebas Neue',sans-serif; font-size:clamp(6rem,18vw,14rem);
+      color:rgba(181,255,0,0.04); pointer-events:none; letter-spacing:0.1em;
+    }
+    .shop-hero-inner   { max-width:1200px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:2rem; flex-wrap:wrap; }
+    .shop-hero-text    { flex:1; min-width:220px; }
+    .shop-hero-text .section-label { margin-bottom:0.5rem; }
+    .shop-hero-title   { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.5rem,6vw,4.5rem); line-height:1; letter-spacing:0.04em; }
+    .shop-hero-title span { color:var(--green); }
+    .shop-hero-sub     { margin-top:0.8rem; font-size:0.9rem; color:var(--muted); max-width:360px; line-height:1.6; }
+
+    .shop-filters { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:1.5rem; }
+    .filter-pill  {
+      padding:0.45rem 1.1rem; border-radius:50px; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase;
+      cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:transparent; color:var(--muted); transition:all 0.2s;
+    }
+    .filter-pill:hover, .filter-pill.active { background:var(--green); color:var(--black); border-color:var(--green); font-weight:600; }
+
+    .shop-body          { max-width:1200px; margin:0 auto; padding:3rem 5vw 5rem; }
+    .shop-section       { margin-bottom:3.5rem; }
+    .shop-section-title {
+      font-family:'Bebas Neue',sans-serif; font-size:1.6rem; letter-spacing:0.1em; margin-bottom:1.2rem;
+      display:flex; align-items:center; gap:0.8rem;
+    }
+    .shop-section-title::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.07); }
+
+    /* Featured banners */
+    .featured-banners { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-bottom:3.5rem; }
+    .banner-card {
+      border-radius:20px; padding:2rem; position:relative; overflow:hidden;
+      min-height:180px; display:flex; flex-direction:column; justify-content:flex-end;
+      cursor:pointer; transition:transform 0.3s, box-shadow 0.3s;
+    }
+    .banner-card:hover { transform:translateY(-4px); box-shadow:0 16px 48px rgba(0,0,0,0.5); }
+    .banner-card.energy { background:linear-gradient(135deg,#0d1a00,#1a3300 60%,#0a1200); border:1px solid rgba(181,255,0,0.2); grid-column:span 2; }
+    .banner-card.soda   { background:linear-gradient(135deg,#001830,#002a50 60%,#001020); border:1px solid rgba(0,150,255,0.2); }
+    .banner-card.choco  { background:linear-gradient(135deg,#1a0800,#3a1500 60%,#120500); border:1px solid rgba(255,120,0,0.2); }
+    .banner-bg-text     {
+      position:absolute; top:50%; right:-1rem; transform:translateY(-50%);
+      font-family:'Bebas Neue',sans-serif; font-size:clamp(3rem,8vw,6rem);
+      opacity:0.07; white-space:nowrap; letter-spacing:0.1em; pointer-events:none;
+    }
+    .banner-tag   { font-size:0.68rem; letter-spacing:0.3em; text-transform:uppercase; margin-bottom:0.4rem; }
+    .energy .banner-tag { color:var(--green); }
+    .soda   .banner-tag { color:#4db8ff; }
+    .choco  .banner-tag { color:#ff9944; }
+    .banner-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(1.6rem,4vw,2.5rem); letter-spacing:0.05em; line-height:1; }
+    .banner-sub   { font-size:0.8rem; color:var(--muted); margin-top:0.3rem; }
+    .banner-btn   {
+      display:inline-block; margin-top:1rem; padding:0.5rem 1.2rem;
+      border-radius:50px; font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase;
+      font-weight:600; cursor:pointer; border:none; transition:all 0.2s; width:fit-content;
+    }
+    .energy .banner-btn { background:var(--green); color:var(--black); }
+    .soda   .banner-btn { background:#4db8ff;      color:var(--black); }
+    .choco  .banner-btn { background:#ff9944;      color:var(--black); }
+    .banner-btn:hover   { opacity:0.85; transform:scale(1.04); }
+
+    /* Product cards */
+    .products-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:1.2rem; }
+    .product-card  {
+      background:var(--grey); border:1px solid rgba(255,255,255,0.06);
+      border-radius:16px; padding:1.2rem;
+      display:flex; flex-direction:column; gap:0.6rem;
+      cursor:pointer; position:relative; overflow:hidden;
+      transition:transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    }
+    .product-card:hover  { transform:translateY(-5px); border-color:rgba(181,255,0,0.3); box-shadow:0 12px 32px rgba(0,0,0,0.4); }
+
+    @keyframes productPulse {
+      0%   { border-color: var(--green); box-shadow: 0 0 0 0 rgba(181,255,0,0.6), 0 12px 32px rgba(0,0,0,0.4); transform: translateY(-5px) scale(1.03); }
+      50%  { border-color: var(--green); box-shadow: 0 0 0 10px rgba(181,255,0,0), 0 12px 40px rgba(181,255,0,0.25); transform: translateY(-5px) scale(1.03); }
+      100% { border-color: rgba(181,255,0,0.3); box-shadow: 0 12px 32px rgba(0,0,0,0.4); transform: translateY(0) scale(1); }
+    }
+    .product-card.product-highlight {
+      animation: productPulse 1.8s cubic-bezier(0.4,0,0.2,1) forwards;
+    }
+    .product-emoji       { font-size:2.8rem; text-align:center; padding:0.5rem 0; line-height:1; }
+    .product-brand       { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+    .product-name        { font-size:0.88rem; font-weight:500; color:var(--white); line-height:1.3; }
+    .product-footer      { display:flex; justify-content:space-between; align-items:center; margin-top:auto; }
+    .product-price       { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; color:var(--green); }
+    .product-badge       {
+      position:absolute; top:0.8rem; right:0.8rem;
+      font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase;
+      padding:0.2rem 0.5rem; border-radius:50px; background:var(--green); color:var(--black); font-weight:700;
+    }
+
+    /* Add / Qty buttons */
+    .add-btn {
+      width:30px; height:30px; border-radius:50%; background:var(--green); color:var(--black);
+      border:none; font-size:1.2rem; font-weight:700; cursor:pointer; line-height:1;
+      display:flex; align-items:center; justify-content:center;
+      transition:transform 0.2s, background 0.2s;
+    }
+    .add-btn:hover { transform:scale(1.15); background:var(--dark-green); }
+    .qty-control   { display:flex; align-items:center; border-radius:50px; overflow:hidden; border:1.5px solid var(--green); background:rgba(181,255,0,0.06); }
+    .qty-btn {
+      width:28px; height:28px; border:none; background:transparent; color:var(--green);
+      font-size:1rem; font-weight:700; cursor:pointer; line-height:1;
+      display:flex; align-items:center; justify-content:center; transition:background 0.15s;
+    }
+    .qty-btn:hover       { background:rgba(181,255,0,0.15); }
+    .qty-btn.minus:hover { background:rgba(255,80,80,0.12); color:#ff5555; }
+    .qty-count           { min-width:24px; text-align:center; font-family:'Bebas Neue',sans-serif; font-size:1rem; color:var(--white); letter-spacing:0.05em; user-select:none; }
+
+    /* Wishlist heart */
+    .wishlist-heart {
+      position:absolute; top:0.7rem; left:0.7rem; width:32px; height:32px;
+      border-radius:50%; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      font-size:0.9rem; z-index:2; padding:0; transition:all 0.25s ease;
+    }
+    .wishlist-heart:hover  { background:rgba(255,80,80,0.12); border-color:rgba(255,80,80,0.3); transform:scale(1.1); }
+    .wishlist-heart.active { background:rgba(255,50,50,0.18); border-color:rgba(255,50,50,0.5); box-shadow:0 0 14px rgba(255,50,50,0.35); animation:heartPop 0.4s ease; }
+    @keyframes heartPop { 0%{transform:scale(1);} 40%{transform:scale(1.3);} 70%{transform:scale(0.95);} 100%{transform:scale(1);} }
+
+    /* ─── INNER PAGES (Cart / Wishlist / Orders) ─────────── */
+    #home-page, #shop-page, #orders-page, #wishlist-page, #cart-page, #contact-page {
+      min-height: 100vh; background: var(--black);
+    }
+    #orders-page, #wishlist-page, #cart-page { padding-top: 80px; }
+
+    .page-wrap    { max-width:900px; margin:0 auto; padding:0 5vw 5rem; }
+    .page-header  { padding:3rem 0 2rem; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:2.5rem; }
+    .page-header-inner { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .page-title   { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.2rem,5vw,3.5rem); letter-spacing:0.05em; line-height:1; color:var(--white); }
+    .page-title span { color:var(--green); }
+    .page-body    { min-height:400px; }
+
+    /* ─── PROFILE PAGE ───────────────────────────────────── */
+    .profile-avatar-wrap {
+      display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2.5rem;
+      padding: 1.8rem; background: rgba(181,255,0,0.04); border: 1px solid rgba(181,255,0,0.12);
+      border-radius: 20px;
+    }
+    .profile-avatar {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(181,255,0,0.2), rgba(181,255,0,0.06));
+      border: 2px solid rgba(181,255,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; flex-shrink: 0; position: relative; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .profile-avatar:hover { border-color: var(--green); }
+    .profile-avatar-edit {
+      position: absolute; bottom: 0; right: 0;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--green); color: var(--black);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700;
+    }
+    .profile-avatar-info h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.06em; color: var(--white); }
+    .profile-avatar-info p  { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+    .profile-avatar-info .profile-member-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      margin-top: 0.5rem; padding: 0.25rem 0.75rem; border-radius: 50px;
+      background: rgba(181,255,0,0.1); border: 1px solid rgba(181,255,0,0.25);
+      font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green);
+    }
+
+    .profile-section-label {
+      font-size: 0.68rem; letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--green); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem;
+    }
+    .profile-section-label::after { content:''; flex:1; height:1px; background: rgba(181,255,0,0.15); }
+
+    .profile-fields { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+    .profile-field {
+      display: flex; flex-direction: column; gap: 0.4rem;
+    }
+    .profile-field label {
+      font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    }
+    .profile-field-row {
+      display: flex; align-items: center; gap: 0.8rem;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px; padding: 0.85rem 1.1rem;
+      transition: border-color 0.2s;
+    }
+    .profile-field-row:focus-within { border-color: rgba(181,255,0,0.4); background: rgba(181,255,0,0.03); }
+    .profile-field-icon { font-size: 1.05rem; flex-shrink: 0; width: 22px; text-align: center; }
+    .profile-field-row input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+      caret-color: var(--green);
+    }
+    .profile-field-row input::placeholder { color: var(--muted); }
+    .profile-field-row input:disabled { color: rgba(245,245,240,0.45); cursor: not-allowed; }
+    .profile-field-edit-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 0.75rem; padding: 0.2rem 0.5rem;
+      border-radius: 6px; transition: color 0.2s, background 0.2s;
+      white-space: nowrap; letter-spacing: 0.04em;
+    }
+    .profile-field-edit-btn:hover { color: var(--green); background: rgba(181,255,0,0.08); }
+
+    .profile-save-btn {
+      width: 100%; padding: 0.95rem; border-radius: 50px;
+      background: var(--green); color: var(--black);
+      font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+      font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity 0.2s, transform 0.2s;
+      margin-top: 0.5rem;
+    }
+    .profile-save-btn:hover { opacity: 0.85; transform: scale(1.01); }
+    .profile-save-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .profile-danger-zone {
+      margin-top: 2.5rem; padding: 1.4rem 1.6rem;
+      border: 1px solid rgba(255,85,85,0.18); border-radius: 16px;
+      background: rgba(255,85,85,0.04);
+    }
+    .profile-danger-title { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: #ff5555; margin-bottom: 0.8rem; }
+    .profile-signout-btn {
+      background: none; border: 1.5px solid rgba(255,85,85,0.4); border-radius: 50px;
+      color: #ff5555; padding: 0.6rem 1.5rem; font-size: 0.82rem; letter-spacing: 0.08em;
+      cursor: pointer; transition: background 0.2s, border-color 0.2s;
+    }
+    .profile-signout-btn:hover { background: rgba(255,85,85,0.08); border-color: #ff5555; }
+
+    /* ─── CREATE ACCOUNT PAGE ────────────────────────────── */
+    .auth-wrap {
+      max-width: 480px; margin: 0 auto; padding: 0 5vw 6rem;
+    }
+    .auth-header {
+      padding: 3.5rem 0 2.5rem; text-align: center;
+    }
+    .auth-logo-ring {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(181,255,0,0.18), rgba(181,255,0,0.05));
+      border: 2px solid rgba(181,255,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem; margin: 0 auto 1.2rem;
+    }
+    .auth-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2rem,5vw,3rem); letter-spacing: 0.06em; color: var(--white); }
+    .auth-title span { color: var(--green); }
+    .auth-sub { font-size: 0.82rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.6; }
+
+    /* Tab switcher */
+    .auth-tabs {
+      display: flex; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 4px; gap: 4px; margin-bottom: 2rem;
+    }
+    .auth-tab {
+      flex: 1; padding: 0.7rem; border-radius: 10px; border: none;
+      background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem; letter-spacing: 0.04em; cursor: pointer;
+      transition: all 0.22s; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .auth-tab.active {
+      background: rgba(181,255,0,0.12); color: var(--green);
+      border: 1px solid rgba(181,255,0,0.25); font-weight: 600;
+    }
+
+    /* Panel */
+    .auth-panel { display: none; }
+    .auth-panel.active { display: block; }
+
+    .auth-field { margin-bottom: 1.1rem; }
+    .auth-field label { display: block; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.45rem; }
+    .auth-field-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px; padding: 0.9rem 1.1rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .auth-field-row:focus-within { border-color: rgba(181,255,0,0.45); background: rgba(181,255,0,0.03); }
+    .auth-field-icon { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+    .auth-field-row input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.92rem;
+      caret-color: var(--green);
+    }
+    .auth-field-row input::placeholder { color: rgba(136,136,136,0.6); }
+
+    /* Phone prefix */
+    .auth-prefix {
+      font-size: 0.88rem; color: var(--muted); border-right: 1px solid rgba(255,255,255,0.1);
+      padding-right: 0.75rem; margin-right: 0.1rem; white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* OTP boxes */
+    .otp-row { display: flex; gap: 0.6rem; justify-content: center; margin: 1.2rem 0; }
+    .otp-box {
+      width: 52px; height: 58px; border-radius: 14px; text-align: center;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--white); font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem;
+      outline: none; caret-color: var(--green); transition: border-color 0.2s, background 0.2s;
+    }
+    .otp-box:focus { border-color: rgba(181,255,0,0.5); background: rgba(181,255,0,0.04); }
+
+    .auth-otp-step { display: none; }
+    .auth-otp-step.active { display: block; }
+
+    .auth-divider {
+      display: flex; align-items: center; gap: 0.8rem; margin: 1.4rem 0;
+      font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em;
+    }
+    .auth-divider::before, .auth-divider::after { content:''; flex:1; height:1px; background: rgba(255,255,255,0.07); }
+
+    .auth-btn {
+      width: 100%; padding: 0.95rem; border-radius: 50px; border: none;
+      font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .auth-btn-primary { background: var(--green); color: var(--black); }
+    .auth-btn-primary:hover { opacity: 0.85; transform: scale(1.01); }
+    .auth-btn-google {
+      background: rgba(255,255,255,0.05); color: var(--white);
+      border: 1px solid rgba(255,255,255,0.12);
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+    }
+    .auth-btn-google:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.2); }
+    .auth-btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    .auth-resend { text-align: center; margin-top: 1rem; font-size: 0.78rem; color: var(--muted); }
+    .auth-resend button { background: none; border: none; color: var(--green); cursor: pointer; font-size: 0.78rem; text-decoration: underline; }
+    .auth-resend button:disabled { color: var(--muted); text-decoration: none; cursor: default; }
+
+    .auth-signin-link { text-align: center; margin-top: 1.5rem; font-size: 0.8rem; color: var(--muted); }
+    .auth-signin-link button { background: none; border: none; color: var(--green); cursor: pointer; font-size: 0.8rem; font-family: 'DM Sans', sans-serif; }
+    .auth-signin-link button:hover { text-decoration: underline; }
+
+    /* ── Login instruction banner ── */
+    .login-instruction-banner {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      background: linear-gradient(135deg, rgba(181,255,0,0.07), rgba(181,255,0,0.03));
+      border: 1px solid rgba(181,255,0,0.22);
+      border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: 1.6rem;
+    }
+    .lib-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .lib-text { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+    .lib-text strong { color: var(--white); }
+    .lib-link {
+      background: none; border: none; color: var(--green); cursor: pointer;
+      font-size: 0.78rem; font-family: 'DM Sans', sans-serif;
+      font-weight: 600; padding: 0; text-decoration: underline;
+    }
+    .lib-link:hover { opacity: 0.8; }
+
+    /* Empty states */
+    .empty-state  { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:5rem 1rem; gap:0.6rem; }
+    .empty-icon   { font-size:4rem; opacity:0.35; margin-bottom:0.5rem; }
+    .empty-title  { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; letter-spacing:0.08em; color:var(--white); }
+    .empty-sub    { font-size:0.88rem; color:var(--muted); max-width:340px; line-height:1.7; }
+
+    .empty-icon.wish-anim { animation:heartbeat 2s ease-in-out infinite; }
+    .empty-icon.cart-anim { animation:cartBounce 3s ease-in-out infinite; }
+    .empty-icon.ord-anim  { animation:float 4s ease-in-out infinite; }
+
+    @keyframes heartbeat {
+      0%,100%{transform:scale(1);opacity:.35;} 15%{transform:scale(1.15);opacity:.55;}
+      30%{transform:scale(1);opacity:.35;} 45%{transform:scale(1.1);opacity:.5;} 60%{transform:scale(1);opacity:.35;}
+    }
+    @keyframes cartBounce {
+      0%,100%{transform:translateY(0) rotate(0deg);} 25%{transform:translateY(-10px) rotate(-3deg);}
+      50%{transform:translateY(0) rotate(0deg);} 75%{transform:translateY(-6px) rotate(3deg);}
+    }
+
+    /* Cart items */
+    .cart-items-list { display:flex; flex-direction:column; gap:1rem; }
+    .cart-item {
+      display:flex; align-items:center; gap:1.2rem;
+      background:#111; border:1px solid rgba(255,255,255,0.07);
+      border-radius:16px; padding:1.2rem 1.4rem; transition:border-color 0.2s;
+    }
+    .cart-item:hover        { border-color:rgba(181,255,0,0.2); }
+    .cart-item-emoji        { font-size:2rem; width:48px; height:48px; background:rgba(255,255,255,0.04); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .cart-item-info         { flex:1; min-width:0; }
+    .cart-item-brand        { font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .cart-item-name         { font-size:0.9rem; font-weight:500; color:var(--white); margin-top:2px; }
+    .cart-item-price        { font-size:0.78rem; color:var(--green); margin-top:3px; }
+    .cart-item-qty          { display:flex; align-items:center; border-radius:50px; overflow:hidden; border:1.5px solid rgba(255,255,255,0.15); flex-shrink:0; }
+    .cart-item-qty button   { width:30px; height:30px; border:none; background:transparent; color:var(--white); font-size:1rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s, color 0.15s; }
+    .cart-item-qty button:hover      { background:rgba(181,255,0,0.12); color:var(--green); }
+    .cart-item-qty button.cart-minus:hover { background:rgba(255,80,80,0.12); color:#ff5555; }
+    .cart-item-qty span     { min-width:26px; text-align:center; font-family:'Bebas Neue',sans-serif; font-size:1rem; color:var(--white); }
+    .cart-item-total        { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; color:var(--green); min-width:60px; text-align:right; flex-shrink:0; }
+    .cart-item-remove       { background:none; border:none; color:#555; font-size:1.1rem; cursor:pointer; padding:4px; transition:color 0.2s; flex-shrink:0; }
+    .cart-item-remove:hover { color:#ff5555; }
+    .cart-summary           { margin-top:2rem; padding:1.5rem 1.8rem; background:rgba(181,255,0,0.04); border:1px solid rgba(181,255,0,0.15); border-radius:16px; display:flex; justify-content:space-between; align-items:center; }
+    .cart-summary-label     { font-size:0.85rem; color:var(--muted); letter-spacing:0.05em; }
+    .cart-summary-label strong { color:var(--white); }
+    .cart-summary-total     { font-family:'Bebas Neue',sans-serif; font-size:2rem; color:var(--green); letter-spacing:0.04em; }
+
+    /* ─── CONTACT PAGE ───────────────────────────────────── */
+    .contact-wrap      { max-width:700px; margin:0 auto; padding:0 5vw 6rem; }
+    .contact-header    { padding:3.5rem 0 2.5rem; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:3rem; }
+    .contact-page-title{ font-family:'Bebas Neue',sans-serif; font-size:clamp(2.5rem,6vw,4rem); letter-spacing:0.05em; line-height:1; color:var(--white); }
+    .contact-page-title span { color:var(--green); }
+    .contact-subtitle  { margin-top:0.7rem; font-size:0.9rem; color:var(--muted); line-height:1.7; }
+    .contact-cards     { display:flex; flex-direction:column; gap:1.2rem; }
+    .contact-card      {
+      display:flex; align-items:center; gap:1.5rem;
+      background:#111; border:1px solid rgba(255,255,255,0.07);
+      border-radius:20px; padding:1.8rem 2rem; text-decoration:none; color:var(--white);
+      position:relative; overflow:hidden;
+      transition:border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+    }
+    .contact-card::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 0% 50%,rgba(181,255,0,0.06),transparent 60%); opacity:0; transition:opacity 0.3s; }
+    .contact-card:hover   { border-color:var(--green); box-shadow:0 12px 40px rgba(181,255,0,0.1); transform:translateY(-4px); }
+    .contact-card:hover::before { opacity:1; }
+    .contact-card-icon  { width:58px; height:58px; border-radius:16px; background:rgba(181,255,0,0.08); border:1px solid rgba(181,255,0,0.18); display:flex; align-items:center; justify-content:center; font-size:1.6rem; flex-shrink:0; transition:background 0.25s; }
+    .contact-card:hover .contact-card-icon { background:rgba(181,255,0,0.16); }
+    .contact-card-body  { flex:1; }
+    .contact-card-label { font-size:0.68rem; letter-spacing:0.3em; text-transform:uppercase; color:var(--green); margin-bottom:0.3rem; }
+    .contact-card-value { font-family:'Bebas Neue',sans-serif; font-size:1.45rem; letter-spacing:0.05em; color:var(--white); }
+    .contact-card-hint  { font-size:0.75rem; color:var(--muted); margin-top:0.2rem; }
+    .contact-card-arrow { font-size:1.2rem; color:var(--muted); transition:color 0.2s, transform 0.2s; flex-shrink:0; }
+    .contact-card:hover .contact-card-arrow { color:var(--green); transform:translateX(4px); }
+
+    .contact-card.insta:hover { border-color:#e1306c; box-shadow:0 12px 40px rgba(225,48,108,0.12); }
+    .contact-card.insta:hover .contact-card-icon { background:rgba(225,48,108,0.12); border-color:rgba(225,48,108,0.3); }
+    .contact-card.insta .contact-card-label { color:#e1306c; }
+    .contact-card.gmail:hover { border-color:#ea4335; box-shadow:0 12px 40px rgba(234,67,53,0.12); }
+    .contact-card.gmail:hover .contact-card-icon { background:rgba(234,67,53,0.12); border-color:rgba(234,67,53,0.3); }
+    .contact-card.gmail .contact-card-label { color:#ea4335; }
+
+    .contact-hours      { margin-top:2.5rem; padding:1.5rem 2rem; background:rgba(181,255,0,0.04); border:1px solid rgba(181,255,0,0.12); border-radius:16px; display:flex; align-items:center; gap:1rem; }
+    .contact-hours-icon { font-size:1.5rem; flex-shrink:0; }
+    .contact-hours-text { font-size:0.83rem; color:var(--muted); line-height:1.6; }
+    .contact-hours-text strong { color:var(--green); font-weight:500; }
+
+    /* ─── SEARCH OVERLAY ─────────────────────────────────── */
+    #searchOverlay {
+      position:fixed; inset:0; z-index:500;
+      background:rgba(10,10,10,0.92); backdrop-filter:blur(16px);
+      display:none; flex-direction:column; align-items:center;
+      padding:6rem 5vw 4rem; opacity:0; transition:opacity 0.25s;
+    }
+    .search-box {
+      width:100%; max-width:620px; display:flex; align-items:center; gap:0.8rem;
+      background:#161616; border:1.5px solid rgba(181,255,0,0.35);
+      border-radius:16px; padding:0.9rem 1.2rem; box-shadow:0 0 40px rgba(181,255,0,0.08);
+    }
+    .search-box svg    { flex-shrink:0; opacity:0.5; }
+    #searchInput       { flex:1; background:none; border:none; outline:none; color:var(--white); font-size:1.1rem; font-family:'DM Sans',sans-serif; caret-color:var(--green); }
+    #searchInput::placeholder { color:#555; }
+    .search-close-btn  { background:none; border:none; color:#888; font-size:1.4rem; cursor:pointer; padding:2px 4px; transition:color 0.2s; }
+    .search-close-btn:hover { color:var(--green); }
+    .search-results    { width:100%; max-width:620px; margin-top:1.5rem; display:flex; flex-direction:column; gap:0.6rem; max-height:60vh; overflow-y:auto; }
+    .search-result-item{ display:flex; align-items:center; gap:1rem; background:#111; border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:1rem 1.2rem; cursor:pointer; text-align:left; transition:border-color 0.2s, background 0.2s; }
+    .search-result-item:hover { border-color:var(--green); background:rgba(181,255,0,0.05); }
+    .search-result-emoji { font-size:1.4rem; flex-shrink:0; width:36px; text-align:center; }
+    .search-result-name  { font-size:0.95rem; color:var(--white); font-weight:500; }
+    .search-result-sub   { font-size:0.75rem; color:#888; margin-top:2px; }
+    .search-result-tag   { margin-left:auto; font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.25rem 0.7rem; border-radius:50px; border:1px solid rgba(181,255,0,0.3); color:var(--green); flex-shrink:0; }
+    .search-empty        { text-align:center; color:#555; font-size:0.9rem; margin-top:2rem; line-height:1.8; }
+    .search-hint         { font-size:0.72rem; letter-spacing:0.2em; text-transform:uppercase; color:#444; margin-top:1.2rem; text-align:center; width:100%; max-width:620px; }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .cover-title { font-size: clamp(4rem,22vw,7rem); }
+      .monster-grid { grid-template-columns: repeat(2,1fr); gap:1rem; }
+      .monster-card { padding: 1.5rem 1rem 1rem; }
+      .can { width:60px; height:110px; }
+    }
+    @media (max-width: 600px) {
+      .featured-banners { grid-template-columns: 1fr; }
+      .banner-card.energy { grid-column: span 1; }
+      .products-grid { grid-template-columns: 1fr 1fr; }
+      .cart-item { flex-wrap: wrap; gap: 0.8rem; }
+      .cart-item-total { min-width: auto; }
+    }
+    @media (max-width: 480px) {
+      .monster-grid { grid-template-columns: 1fr 1fr; }
+      .cover-sub    { font-size: 0.95rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ░░ SIDEBAR ░░ -->
+  <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">Super Store</div>
+      <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+    </div>
+    <ul class="sidebar-menu">
+      <li>
+        <a href="#" onclick="goToProfile(event)">
+          <div class="sidebar-icon">👤</div>
+          <div><span class="sidebar-menu-label" id="sidebarProfileName">My Profile</span><span class="sidebar-menu-sub">View your account</span></div>
+        </a>
+      </li>
+      <div class="sidebar-divider"></div>
+      <li id="sidebarCreateAccountItem">
+        <a href="#" onclick="goToCreateAccount(event)">
+          <div class="sidebar-icon">✏️</div>
+          <div><span class="sidebar-menu-label">Create Account</span><span class="sidebar-menu-sub">Join Super Store</span></div>
+        </a>
+      </li>
+      <li id="sidebarLoginItem">
+        <a href="#" onclick="goToLogin(event)">
+          <div class="sidebar-icon">🔑</div>
+          <div><span class="sidebar-menu-label">Login</span><span class="sidebar-menu-sub">Sign in to your account</span></div>
+        </a>
+      </li>
+      <li>
+        <a href="#" onclick="openHelp(event)">
+          <div class="sidebar-icon">❓</div>
+          <div><span class="sidebar-menu-label">Help</span><span class="sidebar-menu-sub">Contact &amp; Support</span></div>
+        </a>
+      </li>
+      <li>
+        <a href="#" onclick="openTnC(event)">
+          <div class="sidebar-icon">📋</div>
+          <div><span class="sidebar-menu-label">Terms &amp; Conditions</span><span class="sidebar-menu-sub">Usage policy &amp; legal info</span></div>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">© 2026 Super Store. All rights reserved.</div>
+  </aside>
+
+  <!-- ░░ NAV ░░ -->
+  <nav>
+    <div class="nav-left">
+      <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-logo" onclick="goHome()" title="Go to Homepage">Super Store</div>
+      <div class="nav-arrows">
+        <button class="nav-arrow" id="btn-back" onclick="historyBack()" title="Go back" disabled>&#8592;</button>
+        <button class="nav-arrow" id="btn-fwd"  onclick="historyFwd()"  title="Go forward" disabled>&#8594;</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.6rem;">
+      <button class="user-icon-btn" onclick="toggleSearch()" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </button>
+      <div class="nav-user">
+        <button class="user-icon-btn" id="userIconBtn" onclick="toggleUserDropdown()" title="Account" aria-label="User account">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          <div class="nav-dot" id="navUserDot"></div>
+        </button>
+        <div class="user-dropdown" id="userDropdown">
+          <ul class="user-dropdown-menu">
+            <li><a href="#" onclick="goToOrders(event)"><span class="drop-icon">🛒</span> My Orders</a></li>
+            <li>
+              <a href="#" onclick="goToCart(event)">
+                <div class="menu-cart-wrap"><span><span class="drop-icon">🛍️</span> My Cart</span><span class="menu-dot" id="menuCartDot"></span></div>
+              </a>
+            </li>
+            <li>
+              <a href="#" onclick="goToWishlist(event)">
+                <div class="menu-cart-wrap"><span><span class="drop-icon">❤️</span> Wishlist</span><span class="menu-wish-dot" id="menuWishDot"></span></div>
+              </a>
+            </li>
+            <li><a href="#"><span class="drop-icon">⚙️</span> Settings</a></li>
+            <div class="user-dropdown-divider"></div>
+            <li class="sign-out"><a href="#" onclick="signOut(event)"><span class="drop-icon">🚪</span> Sign Out</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ░░ HOME PAGE ░░ -->
+  <div id="home-page" class="page active">
+
+    <section id="cover">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+      <p class="cover-eyebrow">Welcome to the store</p>
+      <h1 class="cover-title">SUPER<br><span>STORE</span></h1>
+      <p class="cover-sub">Your one-stop destination for energy, essentials &amp; everything in between. Real products. Real vibes.</p>
+      <div class="cover-cta">
+        <button onclick="goToShop()" class="btn btn-primary">Shop Now</button>
+        <a href="#monster" class="btn btn-outline">Explore</a>
+      </div>
+      <div class="scroll-hint">Scroll</div>
+    </section>
+
+    <section id="monster">
+      <div class="section-header">
+        <span class="section-label">Energy Drinks</span>
+        <h2 class="section-title">Monster <span style="color:var(--green)">Energy</span></h2>
+      </div>
+      <div class="monster-grid">
+        <!-- Original -->
+        <div class="monster-card">
+          <div class="can-wrap"><div class="can can-original"><div class="can-top"></div><div class="can-claw">M</div><div class="can-name-strip">ORIGINAL</div></div></div>
+          <div class="card-name">Monster Original</div>
+          <div class="card-desc">The classic green beast. Bold, electric energy that hits hard and keeps you going.</div>
+          <span class="card-tag">Bestseller</span>
+        </div>
+        <!-- Ultra -->
+        <div class="monster-card">
+          <div class="can-wrap"><div class="can can-ultra"><div class="can-top"></div><div class="can-claw">M</div><div class="can-name-strip">ULTRA</div></div></div>
+          <div class="card-name">Monster Ultra</div>
+          <div class="card-desc">Light, crisp &amp; zero sugar. The sophisticated side of the monster family.</div>
+          <span class="card-tag">Zero Sugar</span>
+        </div>
+        <!-- Zero / Pipeline Punch -->
+        <div class="monster-card">
+          <div class="can-wrap"><div class="can can-zero"><div class="can-top"></div><div class="can-claw">M</div><div class="can-name-strip">ZERO</div></div></div>
+          <div class="card-name">Pipeline Punch</div>
+          <div class="card-desc">All the energy, zero compromise. Dark can, same raw power within.</div>
+          <span class="card-tag">0 Calories</span>
+        </div>
+        <!-- Mango Loco -->
+        <div class="monster-card">
+          <div class="can-wrap"><div class="can can-mango"><div class="can-top"></div><div class="can-claw">M</div><div class="can-name-strip">MANGO LOCO</div></div></div>
+          <div class="card-name">Mango Loco</div>
+          <div class="card-desc">Tropical mango madness meets Monster energy. Go loco, stay energised.</div>
+          <span class="card-tag">Tropical</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:3.5rem;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:0.1em;color:rgba(255,255,255,0.4);">AND MANY MORE...</div>
+    </section>
+
+    <footer>
+      <div class="footer-logo">Super Store</div>
+      <div class="footer-copy">© 2026 Super Store. All rights reserved.</div>
+    </footer>
+
+  </div><!-- /home-page -->
+
+  <!-- ░░ SHOP PAGE ░░ -->
+  <div id="shop-page" class="page">
+    <div class="shop-hero">
+      <div class="shop-hero-inner">
+        <div class="shop-hero-text">
+          <span class="section-label">Super Store</span>
+          <div class="shop-hero-title">Our <span>Shop</span></div>
+          <p class="shop-hero-sub">Everything you need, all in one place. Browse our handpicked collection of top products.</p>
+          <div class="shop-filters">
+            <button class="filter-pill active" onclick="filterShop('all', this)">All</button>
+            <button class="filter-pill" onclick="filterShop('energy', this)">⚡ Energy</button>
+            <button class="filter-pill" onclick="filterShop('soda', this)">🥤 Cold Drinks</button>
+            <button class="filter-pill" onclick="filterShop('choco', this)">🍫 Chocolates</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="shop-body">
+      <!-- Featured Banners -->
+      <div class="featured-banners" id="featured-banners">
+        <div class="banner-card energy" data-cat="energy">
+          <div class="banner-bg-text">ENERGY</div>
+          <div class="banner-tag">⚡ Energy Drinks</div>
+          <div class="banner-title">Unleash the Beast</div>
+          <div class="banner-sub">Monster, Sting, Red Bull &amp; more</div>
+          <button class="banner-btn" onclick="filterShop('energy', null)">Shop Energy →</button>
+        </div>
+        <div class="banner-card soda" data-cat="soda">
+          <div class="banner-bg-text">CHILL</div>
+          <div class="banner-tag">🥤 Cold Drinks</div>
+          <div class="banner-title">Stay Refreshed</div>
+          <div class="banner-sub">Coke, Pepsi, Sprite &amp; more</div>
+          <button class="banner-btn" onclick="filterShop('soda', null)">Shop Sodas →</button>
+        </div>
+        <div class="banner-card choco" data-cat="choco">
+          <div class="banner-bg-text">SWEET</div>
+          <div class="banner-tag">🍫 Chocolates</div>
+          <div class="banner-title">Treat Yourself</div>
+          <div class="banner-sub">Dairy Milk, KitKat, Snickers &amp; more</div>
+          <button class="banner-btn" onclick="filterShop('choco', null)">Shop Chocolates →</button>
+        </div>
+      </div>
+
+      <!-- Energy Drinks -->
+      <div class="shop-section" data-section="energy">
+        <div class="shop-section-title">⚡ Energy Drinks</div>
+        <div class="products-grid">
+          <div class="product-card"><div class="product-badge">Hot</div><div class="product-emoji">🟢</div><div class="product-brand">Monster</div><div class="product-name">Monster Original 500ml</div><div class="product-footer"><div class="product-price">₹130</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🔵</div><div class="product-brand">Monster</div><div class="product-name">Monster Ultra White 500ml</div><div class="product-footer"><div class="product-price">₹140</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-badge">New</div><div class="product-emoji">🟠</div><div class="product-brand">Monster</div><div class="product-name">Mango Loco 500ml</div><div class="product-footer"><div class="product-price">₹150</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">⚡</div><div class="product-brand">Sting</div><div class="product-name">Sting Energy 250ml</div><div class="product-footer"><div class="product-price">₹30</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🔴</div><div class="product-brand">Red Bull</div><div class="product-name">Red Bull Original 250ml</div><div class="product-footer"><div class="product-price">₹125</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">💛</div><div class="product-brand">Red Bull</div><div class="product-name">Red Bull Tropical 250ml</div><div class="product-footer"><div class="product-price">₹135</div><button class="add-btn">+</button></div></div>
+        </div>
+      </div>
+
+      <!-- Cold Drinks -->
+      <div class="shop-section" data-section="soda">
+        <div class="shop-section-title">🥤 Cold Drinks / Soda</div>
+        <div class="products-grid">
+          <div class="product-card"><div class="product-badge">Classic</div><div class="product-emoji">🥤</div><div class="product-brand">Coca-Cola</div><div class="product-name">Coke Original 750ml</div><div class="product-footer"><div class="product-price">₹45</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">⚫</div><div class="product-brand">Coca-Cola</div><div class="product-name">Coke Zero 500ml</div><div class="product-footer"><div class="product-price">₹40</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">💙</div><div class="product-brand">Pepsi</div><div class="product-name">Pepsi Original 750ml</div><div class="product-footer"><div class="product-price">₹45</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-badge">Refreshing</div><div class="product-emoji">💚</div><div class="product-brand">Sprite</div><div class="product-name">Sprite Lemon 750ml</div><div class="product-footer"><div class="product-price">₹45</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🟠</div><div class="product-brand">Fanta</div><div class="product-name">Fanta Orange 500ml</div><div class="product-footer"><div class="product-price">₹35</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🫧</div><div class="product-brand">7UP</div><div class="product-name">7UP Nimbooz 500ml</div><div class="product-footer"><div class="product-price">₹35</div><button class="add-btn">+</button></div></div>
+        </div>
+      </div>
+
+      <!-- Chocolates -->
+      <div class="shop-section" data-section="choco">
+        <div class="shop-section-title">🍫 Chocolates &amp; Candy</div>
+        <div class="products-grid">
+          <div class="product-card"><div class="product-badge">Fav</div><div class="product-emoji">🍫</div><div class="product-brand">Cadbury</div><div class="product-name">Dairy Milk Silk 60g</div><div class="product-footer"><div class="product-price">₹99</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🍬</div><div class="product-brand">Nestlé</div><div class="product-name">KitKat 4-Finger 41.5g</div><div class="product-footer"><div class="product-price">₹50</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🥜</div><div class="product-brand">Mars</div><div class="product-name">Snickers 50g</div><div class="product-footer"><div class="product-price">₹60</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-badge">New</div><div class="product-emoji">🍭</div><div class="product-brand">Cadbury</div><div class="product-name">5 Star Double Caramel 40g</div><div class="product-footer"><div class="product-price">₹30</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🤎</div><div class="product-brand">Ferrero</div><div class="product-name">Ferrero Rocher 3pc Box</div><div class="product-footer"><div class="product-price">₹150</div><button class="add-btn">+</button></div></div>
+          <div class="product-card"><div class="product-emoji">🍪</div><div class="product-brand">Oreo</div><div class="product-name">Oreo Choco Creme 120g</div><div class="product-footer"><div class="product-price">₹55</div><button class="add-btn">+</button></div></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-logo">Super Store</div>
+      <div class="footer-copy">© 2026 Super Store. All rights reserved.</div>
+    </footer>
+  </div><!-- /shop-page -->
+
+  <!-- ░░ ORDERS PAGE ░░ -->
+  <!-- ░░ CREATE ACCOUNT PAGE ░░ -->
+  <div id="create-account-page" class="page">
+    <div class="auth-wrap">
+      <div class="auth-header">
+        <div class="auth-logo-ring">🛍️</div>
+        <div class="auth-title">Join <span>Super Store</span></div>
+        <p class="auth-sub">Create your account to track orders, save your cart and get exclusive deals.</p>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabGmail" onclick="switchAuthTab('gmail')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          Gmail
+        </button>
+        <button class="auth-tab" id="tabPhone" onclick="switchAuthTab('phone')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.33 21 3 13.67 3 4.5c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.24 1.02l-2.21 2.2z"/></svg>
+          Phone OTP
+        </button>
+      </div>
+
+      <!-- ── Gmail Panel ── -->
+      <div class="auth-panel active" id="panelGmail">
+        <div class="auth-field">
+          <label>Full Name</label>
+          <div class="auth-field-row">
+            <span class="auth-field-icon">👤</span>
+            <input type="text" id="authGmailName" placeholder="Your full name" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>Gmail Address</label>
+          <div class="auth-field-row">
+            <span class="auth-field-icon">✉️</span>
+            <input type="email" id="authGmailEmail" placeholder="you@gmail.com" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <div class="auth-field-row">
+            <span class="auth-field-icon">🔒</span>
+            <input type="password" id="authGmailPass" placeholder="Create a password" />
+          </div>
+        </div>
+        <button class="auth-btn auth-btn-primary" style="margin-top:0.5rem;" onclick="createWithGmail()">Create Account</button>
+
+        <div class="auth-divider">or</div>
+
+        <button class="auth-btn auth-btn-google" onclick="googleSignIn()">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continue with Google
+        </button>
+      </div>
+
+      <!-- ── Phone OTP Panel ── -->
+      <div class="auth-panel" id="panelPhone">
+
+        <!-- Step 1: Enter phone -->
+        <div class="auth-otp-step active" id="phoneStep1">
+          <div class="auth-field">
+            <label>Full Name</label>
+            <div class="auth-field-row">
+              <span class="auth-field-icon">👤</span>
+              <input type="text" id="authPhoneName" placeholder="Your full name" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label>Phone Number</label>
+            <div class="auth-field-row">
+              <span class="auth-prefix">🇮🇳 +91</span>
+              <input type="tel" id="authPhoneNumber" placeholder="XXXXX XXXXX" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" />
+            </div>
+          </div>
+          <p style="font-size:0.72rem;color:var(--muted);text-align:center;margin-bottom:1rem;line-height:1.5;">
+            📲 We'll send a 4-digit OTP to verify your number.
+          </p>
+          <button class="auth-btn auth-btn-primary" onclick="sendOTP()">Send OTP →</button>
+        </div>
+
+        <!-- Step 2: Enter OTP -->
+        <div class="auth-otp-step" id="phoneStep2">
+          <p style="text-align:center;font-size:0.82rem;color:var(--muted);margin-bottom:0.3rem;">OTP sent to <span id="otpSentTo" style="color:var(--white);font-weight:600;"></span></p>
+          <p style="text-align:center;font-size:0.75rem;color:var(--green);margin-bottom:1.2rem;">Enter the 4-digit code below</p>
+          <div class="otp-row">
+            <input class="otp-box" maxlength="1" type="tel" oninput="otpMove(this,0)" />
+            <input class="otp-box" maxlength="1" type="tel" oninput="otpMove(this,1)" />
+            <input class="otp-box" maxlength="1" type="tel" oninput="otpMove(this,2)" />
+            <input class="otp-box" maxlength="1" type="tel" oninput="otpMove(this,3)" />
+          </div>
+          <button class="auth-btn auth-btn-primary" onclick="verifyOTP()">Verify &amp; Create Account →</button>
+          <div class="auth-resend" style="margin-top:1rem;">
+            Didn't receive it? <button id="resendBtn" onclick="resendOTP()">Resend OTP</button>
+          </div>
+          <div style="text-align:center;margin-top:0.8rem;">
+            <button style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;" onclick="backToPhoneStep1()">← Change number</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="auth-signin-link">
+        Already have an account? <button onclick="goToLogin(null)">Sign In →</button>
+      </div>
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /create-account-page -->
+
+  <!-- ░░ LOGIN PAGE ░░ -->
+  <div id="login-page" class="page">
+    <div class="auth-wrap">
+
+      <div class="auth-header">
+        <div class="auth-logo-ring">🔑</div>
+        <div class="auth-title">Sign <span>In</span></div>
+        <p class="auth-sub">Welcome back! Sign in to access your orders, wishlist, cart and saved data.</p>
+      </div>
+
+      <!-- ── First-time detection banner (hidden by default) ── -->
+      <div class="login-instruction-banner" id="loginNewUserBanner" style="display:none;">
+        <div class="lib-icon">👋</div>
+        <div class="lib-text">
+          <strong>Looks like you're new here!</strong> No account found with these details. Please <button class="lib-link" onclick="goToCreateAccount(null)">Create an Account</button> first — it only takes a minute. Your cart, wishlist and orders will all be saved.
+        </div>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="loginTabGmail" onclick="switchLoginTab('gmail')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          Gmail / Email
+        </button>
+        <button class="auth-tab" id="loginTabPhone" onclick="switchLoginTab('phone')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.33 21 3 13.67 3 4.5c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.24 1.02l-2.21 2.2z"/></svg>
+          Phone OTP
+        </button>
+      </div>
+
+      <!-- ── Gmail / Email Panel ── -->
+      <div class="auth-panel active" id="loginPanelGmail">
+        <div class="auth-field">
+          <label>Gmail / Email Address</label>
+          <div class="auth-field-row">
+            <span class="auth-field-icon">✉️</span>
+            <input type="email" id="loginEmail" placeholder="you@gmail.com" autocomplete="email" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <div class="auth-field-row" style="position:relative;">
+            <span class="auth-field-icon">🔒</span>
+            <input type="password" id="loginPass" placeholder="Your password" autocomplete="current-password" />
+            <button type="button" onclick="toggleLoginPassVis()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 2px;flex-shrink:0;" id="loginPassToggle" title="Show/hide password">👁</button>
+          </div>
+        </div>
+        <button class="auth-btn auth-btn-primary" style="margin-top:0.5rem;" onclick="loginWithEmail()">
+          Sign In →
+        </button>
+
+        <div class="auth-divider">or sign in with</div>
+
+        <button class="auth-btn auth-btn-google" onclick="googleSignIn()">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continue with Google
+        </button>
+      </div>
+
+      <!-- ── Phone OTP Panel ── -->
+      <div class="auth-panel" id="loginPanelPhone">
+
+        <!-- Step 1 -->
+        <div class="auth-otp-step active" id="loginPhoneStep1">
+          <div class="auth-field">
+            <label>Registered Phone Number</label>
+            <div class="auth-field-row">
+              <span class="auth-prefix">🇮🇳 +91</span>
+              <input type="tel" id="loginPhoneNumber" placeholder="XXXXX XXXXX" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" />
+            </div>
+          </div>
+          <p style="font-size:0.73rem;color:var(--muted);text-align:center;margin-bottom:1rem;line-height:1.5;">
+            ⚠️ Must be the same number you used when creating your account.
+          </p>
+          <button class="auth-btn auth-btn-primary" onclick="sendLoginOTP()">Send OTP →</button>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="auth-otp-step" id="loginPhoneStep2">
+          <p style="text-align:center;font-size:0.82rem;color:var(--muted);margin-bottom:0.3rem;">OTP sent to <span id="loginOtpSentTo" style="color:var(--white);font-weight:600;"></span></p>
+          <p style="text-align:center;font-size:0.75rem;color:var(--green);margin-bottom:1.2rem;">Enter the 4-digit code below</p>
+          <div class="otp-row">
+            <input class="otp-box login-otp-box" maxlength="1" type="tel" oninput="loginOtpMove(this,0)" />
+            <input class="otp-box login-otp-box" maxlength="1" type="tel" oninput="loginOtpMove(this,1)" />
+            <input class="otp-box login-otp-box" maxlength="1" type="tel" oninput="loginOtpMove(this,2)" />
+            <input class="otp-box login-otp-box" maxlength="1" type="tel" oninput="loginOtpMove(this,3)" />
+          </div>
+          <button class="auth-btn auth-btn-primary" onclick="verifyLoginOTP()">Verify &amp; Sign In →</button>
+          <div class="auth-resend" style="margin-top:1rem;">
+            Didn't receive it? <button onclick="resendLoginOTP()">Resend OTP</button>
+          </div>
+          <div style="text-align:center;margin-top:0.8rem;">
+            <button style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;" onclick="backToLoginPhoneStep1()">← Change number</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /login-page -->
+
+  <!-- ░░ PROFILE PAGE ░░ -->
+  <div id="profile-page" class="page">
+    <div class="page-wrap">
+      <div class="page-header">
+        <div class="page-header-inner">
+          <div><span class="section-label">Account</span><h2 class="page-title">My <span>Profile</span></h2></div>
+        </div>
+      </div>
+      <div class="page-body">
+
+        <!-- Avatar Card -->
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="profileAvatar">
+            👤
+            <div class="profile-avatar-edit">✏</div>
+          </div>
+          <div class="profile-avatar-info">
+            <h3 id="profileDisplayName"></h3>
+            <p id="profileDisplayEmail"></p>
+            <span class="profile-member-badge">⭐ Super Store Member</span>
+          </div>
+        </div>
+
+        <!-- Personal Info -->
+        <div class="profile-section-label">Personal Info</div>
+        <div class="profile-fields">
+          <div class="profile-field">
+            <label>Full Name</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">👤</span>
+              <input type="text" id="profileName" placeholder="Enter your full name" />
+              <button class="profile-field-edit-btn" onclick="focusField('profileName')">Edit</button>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label>Phone Number</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">📞</span>
+              <input type="tel" id="profilePhone" placeholder="+91 XXXXX XXXXX" />
+              <button class="profile-field-edit-btn" onclick="focusField('profilePhone')">Edit</button>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label>Email Address</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">✉️</span>
+              <input type="email" id="profileEmail" placeholder="you@example.com" />
+              <button class="profile-field-edit-btn" onclick="focusField('profileEmail')">Edit</button>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label>Date of Birth</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">🎂</span>
+              <input type="date" id="profileDob" />
+              <button class="profile-field-edit-btn" onclick="focusField('profileDob')">Edit</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Address -->
+        <div class="profile-section-label">Delivery Address</div>
+        <div class="profile-fields">
+          <div class="profile-field">
+            <label>Address Line</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">🏠</span>
+              <input type="text" id="profileAddress" placeholder="House no., Street, Area" />
+              <button class="profile-field-edit-btn" onclick="focusField('profileAddress')">Edit</button>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label>City / Pincode</label>
+            <div class="profile-field-row">
+              <span class="profile-field-icon">📍</span>
+              <input type="text" id="profileCity" placeholder="" />
+              <button class="profile-field-edit-btn" onclick="focusField('profileCity')">Edit</button>
+            </div>
+          </div>
+        </div>
+
+        <button class="profile-save-btn" onclick="saveProfile()">Save Changes</button>
+
+      </div>
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /profile-page -->
+
+  <div id="orders-page" class="page">
+    <div class="page-wrap">
+      <div class="page-header">
+        <div class="page-header-inner">
+          <div><span class="section-label">Account</span><h2 class="page-title">My <span>Orders</span></h2></div>
+          <button class="btn btn-outline" onclick="goToShop()" style="font-size:.78rem;padding:.6rem 1.4rem;">+ Start Shopping</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="empty-state" id="ordersPageEmpty">
+          <div class="empty-icon ord-anim">📦</div>
+          <h3 class="empty-title">No Orders Yet</h3>
+          <p class="empty-sub">You haven't ordered anything yet. Browse our store and place your first order!</p>
+          <button class="btn btn-primary" onclick="goToShop()" style="margin-top:1.5rem;font-size:.82rem;">Browse Shop</button>
+        </div>
+      </div>
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /orders-page -->
+
+  <!-- ░░ WISHLIST PAGE ░░ -->
+  <div id="wishlist-page" class="page">
+    <div class="page-wrap">
+      <div class="page-header">
+        <div class="page-header-inner">
+          <div><span class="section-label">Account</span><h2 class="page-title">My <span>Wishlist</span></h2></div>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="empty-state" id="wishlistPageEmpty">
+          <div class="empty-icon wish-anim">❤️</div>
+          <h3 class="empty-title">Your Wishlist Is Empty</h3>
+          <button class="btn btn-primary" onclick="goHome()" style="margin-top:1.5rem;font-size:.82rem;">Go To Home</button>
+        </div>
+        <div class="products-grid" id="wishlistItemsList" style="display:none;margin-bottom:2rem;"></div>
+      </div>
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /wishlist-page -->
+
+  <!-- ░░ CART PAGE ░░ -->
+  <div id="cart-page" class="page">
+    <div class="page-wrap">
+      <div class="page-header">
+        <div class="page-header-inner">
+          <div><span class="section-label">Account</span><h2 class="page-title">My <span>Cart</span></h2></div>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="empty-state" id="cartPageEmpty">
+          <div class="empty-icon cart-anim">🛒</div>
+          <h3 class="empty-title">Your Cart Is Empty</h3>
+          <button class="btn btn-primary" onclick="goToShop()" style="margin-top:1.5rem;font-size:.82rem;">Start Shopping</button>
+        </div>
+        <div class="cart-items-list" id="cartItemsList" style="display:none;"></div>
+        <div class="cart-summary" id="cartSummary" style="display:none; flex-wrap: wrap; gap: 1rem;">
+          <div style="flex: 1;">
+            <div class="cart-summary-label"><strong>Total</strong> (incl. all items)</div>
+            <div class="cart-summary-total" id="cartTotalPrice">₹0</div>
+          </div>
+          <button class="btn btn-primary" onclick="checkout()" style="font-size: 0.95rem; padding: 0.8rem 2.5rem; white-space: nowrap;">Checkout →</button>
+        </div>
+      </div>
+    </div>
+    <footer><div class="footer-logo">Super Store</div><div class="footer-copy">© 2026 Super Store. All rights reserved.</div></footer>
+  </div><!-- /cart-page -->
+
+  <!-- ░░ CONTACT PAGE ░░ -->
+  <!-- ░░ SEARCH OVERLAY ░░ -->
+  <div id="searchOverlay">
+    <div class="search-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#b5ff00"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input id="searchInput" type="text" placeholder="Search products, brands, pages…" oninput="runSearch(this.value)" autocomplete="off" />
+      <button class="search-close-btn" onclick="toggleSearch()">✕</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+    <div class="search-hint" id="searchHint">Type to search anything in Super Store</div>
+  </div>
+
+  <!-- ░░ TOAST CONTAINER ░░ -->
+  <div id="toast-container"></div>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    /* ═══════════════════════════════════════════════════════════
+       SUPER STORE — IndexedDB Database Layer (Dexie.js)
+       ═══════════════════════════════════════════════════════════ */
+
+    // ─── Database Setup ───
+    const db = new Dexie("SuperStoreDB");
+    db.version(1).stores({
+      users:    "email, phone, name",
+      cart:     "++id, userKey, productId",
+      wishlist: "++id, userKey, productId"
+    });
+
+    // ─── Session (tiny localStorage marker for who is currently logged in) ───
+    const SESSION_KEY = 'superstore_session';
+    function getSession()  { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch(e) { return null; } }
+    function setSession(userKey) { localStorage.setItem(SESSION_KEY, JSON.stringify(userKey)); }
+    function clearSession() { localStorage.removeItem(SESSION_KEY); }
+
+    // ─── In-memory state (mirrors DB for fast sync with UI) ───
+    let wishlist = [];
+    let cart = [];
+    let currentUserKey = null; // email or phone string of the logged-in user
+
+    /* ─── User Dropdown ─── */
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown').classList.toggle('open');
+    }
+    document.addEventListener('click', e => {
+      const btn = document.getElementById('userIconBtn');
+      const dd  = document.getElementById('userDropdown');
+      if (!btn.contains(e.target) && !dd.contains(e.target)) dd.classList.remove('open');
+    });
+
+    /* ─── Sidebar ─── */
+    function toggleSidebar() {
+      const s = document.getElementById('sidebar');
+      const o = document.getElementById('overlay');
+      const h = document.getElementById('hamburger');
+      s.classList.toggle('open');
+      o.classList.toggle('active');
+      h.classList.toggle('open');
+      document.body.style.overflow = s.classList.contains('open') ? 'hidden' : '';
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('active');
+      document.getElementById('hamburger').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSidebar(); const ov = document.getElementById('searchOverlay'); if (ov.style.display === 'flex') toggleSearch(); } });
+
+    /* ─── Page History ─── */
+    let navHistory = ['home'];
+    let histIdx    = 0;
+
+    function updateArrows() {
+      document.getElementById('btn-back').disabled = histIdx <= 0;
+      document.getElementById('btn-fwd').disabled  = histIdx >= navHistory.length - 1;
+    }
+
+    function showPage(pageId, push = true) {
+      ['home','shop','orders','cart','wishlist','profile','create-account','login'].forEach(id => {
+        document.getElementById(id + '-page').classList.toggle('active', id === pageId);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (push) {
+        navHistory = navHistory.slice(0, histIdx + 1);
+        if (navHistory[histIdx] !== pageId) { navHistory.push(pageId); histIdx++; }
+      }
+      updateArrows();
+    }
+
+    function goHome()               { showPage('home'); }
+    function goToShop()             { showPage('shop'); filterShop('all', null); }
+    function goToOrders(e)          { if (e) e.preventDefault(); document.getElementById('userDropdown').classList.remove('open'); if (!isLoggedIn()) { showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.'); return; } showPage('orders'); renderOrdersPage(); }
+    function goToWishlist(e)        { if (e) e.preventDefault(); document.getElementById('userDropdown').classList.remove('open'); if (!isLoggedIn()) { showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.'); return; } showPage('wishlist'); }
+    function goToCart(e)            { if (e) e.preventDefault(); document.getElementById('userDropdown').classList.remove('open'); if (!isLoggedIn()) { showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.'); return; } showPage('cart'); }
+    function goToContact(e)         { if (e) e.preventDefault(); closeSidebar(); showPage('contact'); }
+    function goToProfile(e)         { if (e) e.preventDefault(); closeSidebar(); if (!isLoggedIn()) { showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.'); return; } showPage('profile'); loadProfileFromDB(); }
+    function goToCreateAccount(e)   { if (e) e.preventDefault(); closeSidebar(); showPage('create-account'); resetAuthForms(); }
+
+    /* ─── Create Account / Auth ─── */
+    function resetAuthForms() {
+      switchAuthTab('gmail');
+      ['authGmailName','authGmailEmail','authGmailPass','authPhoneName','authPhoneNumber'].forEach(id => { document.getElementById(id).value = ''; });
+      document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+      document.getElementById('phoneStep1').classList.add('active');
+      document.getElementById('phoneStep2').classList.remove('active');
+    }
+    function switchAuthTab(tab) {
+      document.getElementById('tabGmail').classList.toggle('active', tab === 'gmail');
+      document.getElementById('tabPhone').classList.toggle('active', tab === 'phone');
+      document.getElementById('panelGmail').classList.toggle('active', tab === 'gmail');
+      document.getElementById('panelPhone').classList.toggle('active', tab === 'phone');
+    }
+    async function createWithGmail() {
+      const name  = document.getElementById('authGmailName').value.trim();
+      const email = document.getElementById('authGmailEmail').value.trim().toLowerCase();
+      const pass  = document.getElementById('authGmailPass').value;
+      if (!name)  { showToast('', '⚠️', 'Please enter your name.'); return; }
+      if (!email || !email.includes('@')) { showToast('', '⚠️', 'Please enter a valid Gmail.'); return; }
+      if (pass.length < 6) { showToast('', '⚠️', 'Password must be at least 6 characters.'); return; }
+      // Save user to IndexedDB
+      await db.users.put({ email, name, password: pass, phone:'', dob:'', address:'', city:'' });
+      currentUserKey = email;
+      setSession(email);
+      loadProfileFromDB();
+      updateAuthUI();
+      showToast('', '✅', 'Account created! Welcome, <strong>' + name + '</strong>.');
+      goToProfile(null);
+    }
+    /* ─── Auth state helpers ─── */
+    function isLoggedIn() {
+      return !!currentUserKey;
+    }
+    function updateAuthUI() {
+      const loggedIn = isLoggedIn();
+      const createItem = document.getElementById('sidebarCreateAccountItem');
+      const loginItem  = document.getElementById('sidebarLoginItem');
+      if (createItem) createItem.style.display = loggedIn ? 'none' : '';
+      if (loginItem)  loginItem.style.display  = loggedIn ? 'none' : '';
+      if (loggedIn) restoreWishlistHearts();
+    }
+    function goToLogin(e) {
+      if (e) e.preventDefault();
+      closeSidebar();
+      ['loginEmail','loginPass','loginPhoneNumber'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+      document.querySelectorAll('.login-otp-box').forEach(b => b.value='');
+      const s1 = document.getElementById('loginPhoneStep1');
+      const s2 = document.getElementById('loginPhoneStep2');
+      if (s1) s1.classList.add('active');
+      if (s2) s2.classList.remove('active');
+      // Hide the first-time banner on fresh open
+      const banner = document.getElementById('loginNewUserBanner');
+      if (banner) banner.style.display = 'none';
+      switchLoginTab('gmail');
+      showPage('login');
+    }
+    function switchLoginTab(tab) {
+      document.getElementById('loginTabGmail').classList.toggle('active', tab === 'gmail');
+      document.getElementById('loginTabPhone').classList.toggle('active', tab === 'phone');
+      document.getElementById('loginPanelGmail').classList.toggle('active', tab === 'gmail');
+      document.getElementById('loginPanelPhone').classList.toggle('active', tab === 'phone');
+    }
+
+    /* ─── Save / Restore wishlist & cart (IndexedDB) ─── */
+    async function saveUserData() {
+      if (!isLoggedIn()) return;
+      const uk = currentUserKey;
+      // Use transaction to prevent race conditions during rapid fast-clicks
+      await db.transaction('rw', db.cart, db.wishlist, async () => {
+        await db.cart.where('userKey').equals(uk).delete();
+        if (cart.length > 0) {
+          await db.cart.bulkAdd(cart.map(c => ({ userKey: uk, productId: c.id, emoji: c.emoji, brand: c.brand, name: c.name, price: c.price, qty: c.qty })));
+        }
+        await db.wishlist.where('userKey').equals(uk).delete();
+        if (wishlist.length > 0) {
+          await db.wishlist.bulkAdd(wishlist.map(w => ({ userKey: uk, productId: w.id, emoji: w.emoji, brand: w.brand, name: w.name, price: w.price })));
+        }
+      });
+    }
+    async function restoreUserData() {
+      if (!currentUserKey) return;
+      try {
+        const wRows = await db.wishlist.where('userKey').equals(currentUserKey).toArray();
+        const cRows = await db.cart.where('userKey').equals(currentUserKey).toArray();
+        wishlist = wRows.map(r => ({ id: r.productId, emoji: r.emoji, brand: r.brand, name: r.name, price: r.price }));
+        cart     = cRows.map(r => ({ id: r.productId, emoji: r.emoji, brand: r.brand, name: r.name, price: r.price, qty: r.qty }));
+        renderWishlistPage(); renderCartPage();
+        updateWishlistDots(); updateCartDots();
+        restoreWishlistHearts();
+      } catch(e) { console.error('restoreUserData error', e); }
+    }
+    function clearUserData() {
+      const uk = currentUserKey;
+      wishlist = []; cart = [];
+      // Note: We intentionally do NOT empty the IndexedDB here, 
+      // because data must persist across sessions.
+      document.querySelectorAll('.wishlist-heart').forEach(btn => { btn.classList.remove('active'); btn.innerHTML = '🤍'; });
+      document.querySelectorAll('.qty-control').forEach(ctrl => {
+        const nb = document.createElement('button'); nb.className='add-btn'; nb.textContent='+';
+        ctrl.replaceWith(nb); attachAddBtnListener(nb);
+      });
+      renderWishlistPage(); renderCartPage();
+      updateWishlistDots(); updateCartDots();
+    }
+    function restoreWishlistHearts() {
+      document.querySelectorAll('.product-card').forEach(card => {
+        const id  = getProductId(card);
+        const btn = card.querySelector('.wishlist-heart');
+        if (!btn) return;
+        const inWish = wishlist.find(w => w.id === id);
+        if (inWish) { btn.classList.add('active'); btn.innerHTML = '❤️'; }
+        else        { btn.classList.remove('active'); btn.innerHTML = '🤍'; }
+      });
+    }
+
+    function toggleLoginPassVis() {
+      const inp = document.getElementById('loginPass');
+      const btn = document.getElementById('loginPassToggle');
+      if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+      else { inp.type = 'password'; btn.textContent = '👁'; }
+    }
+
+    /* ─── Login functions ─── */
+    async function loginWithEmail() {
+      const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+      const pass  = document.getElementById('loginPass').value;
+      if (!email || !email.includes('@')) {
+        showToast('', '⚠️', 'Please enter a valid email address.');
+        document.getElementById('loginEmail').focus();
+        return;
+      }
+      if (!pass) {
+        showToast('', '⚠️', 'Please enter your password.');
+        document.getElementById('loginPass').focus();
+        return;
+      }
+      const saved = await db.users.get(email);
+      // No account found
+      if (!saved) {
+        document.getElementById('loginNewUserBanner').style.display = 'flex';
+        showToast('', '👋', 'No account found. Please <strong>Create an Account</strong> first.');
+        return;
+      }
+      // Wrong password
+      if (saved.password && saved.password !== pass) {
+        showToast('', '❌', 'Incorrect password. Please try again.');
+        document.getElementById('loginPass').value = '';
+        document.getElementById('loginPass').focus();
+        return;
+      }
+      // ✅ Success — set session and restore all user data from DB
+      currentUserKey = email;
+      setSession(email);
+      await restoreUserData();
+      loadProfileFromDB();
+      updateAuthUI();
+      showToast('', '✅', 'Welcome back, <strong>' + (saved.name || email) + '</strong>! 👋');
+      goToProfile(null);
+    }
+    /* ─── Simulated OS SMS Notification ─── */
+    function showSimulatedSMS(phone, otp) {
+      const banner = document.createElement('div');
+      Object.assign(banner.style, {
+        position: 'fixed', top: '-100px', left: '50%', transform: 'translateX(-50%)',
+        width: '90%', maxWidth: '380px', background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)', color: '#000', padding: '12px 16px',
+        borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+        zIndex: '999999', transition: 'top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="background:#25D366;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;">💬</div>
+          <div style="line-height:1.4;text-align:left;">
+            <div style="font-weight:600;font-size:14px;color:#000;">Messages • now</div>
+            <div style="font-weight:400;font-size:14px;color:#111;">Your Super Store OTP is <strong>${otp}</strong>.</div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(banner);
+      setTimeout(() => banner.style.top = '20px', 100);
+      setTimeout(() => {
+        banner.style.top = '-100px';
+        setTimeout(() => banner.remove(), 400);
+      }, 5000);
+    }
+
+    /* ─── Mock Backend Simulator ─── */
+    const _serverDb = { activeOtps: {} };
+    function mockFetch(url, options = {}) {
+      return new Promise((resolve) => {
+        setTimeout(() => { // Simulate network latency
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            if (url === '/api/otp/send' && options.method === 'POST') {
+              if (!body.phone || body.phone.length !== 10) throw new Error("Invalid phone number");
+              const otp = String(Math.floor(1000 + Math.random() * 9000));
+              _serverDb.activeOtps[body.phone] = { code: otp, expiresAt: Date.now() + 5 * 60 * 1000 };
+              console.log(`[📱 BACKEND SIMULATOR] SMS SENT TO +91 ${body.phone}: "Your Super Store OTP is ${otp}. Valid for 5 minutes."`);
+              resolve({ ok: true, json: async () => ({ success: true, message: "OTP sent", devOtp: otp }) });
+            } else if (url === '/api/otp/verify' && options.method === 'POST') {
+              const record = _serverDb.activeOtps[body.phone];
+              if (!record) throw new Error("No OTP requested for this number");
+              if (Date.now() > record.expiresAt) throw new Error("OTP Expired");
+              if (record.code !== body.otp) throw new Error("Incorrect OTP");
+              delete _serverDb.activeOtps[body.phone]; // Verify success
+              resolve({ ok: true, json: async () => ({ success: true, token: "eyJhbGciOiJIUzI1NiIsIn..." }) });
+            } else { throw new Error("404 Route Not Found"); }
+          } catch (err) {
+            resolve({ ok: false, json: async () => ({ success: false, error: err.message }) });
+          }
+        }, 600 + Math.random() * 800);
+      });
+    }
+
+    let _loginPhoneUser = null;
+    async function sendLoginOTP() {
+      const phone = document.getElementById('loginPhoneNumber').value.trim();
+      if (phone.length !== 10) { showToast('', '⚠️', 'Enter a valid 10-digit number.'); return; }
+      const saved = await db.users.where('phone').equals('+91 ' + phone).first();
+      if (!saved) {
+        document.getElementById('loginNewUserBanner').style.display = 'flex';
+        showToast('', '👋', 'No account found with this number. Please <strong>Create an Account</strong> first.');
+        return;
+      }
+      _loginPhoneUser = saved; // store for verifyLoginOTP
+
+      const btn = document.querySelector('#loginPhoneStep1 .auth-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Sending... ⏳'; btn.disabled = true;
+
+      const res = await mockFetch('/api/otp/send', { method: 'POST', body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      btn.innerHTML = originalText; btn.disabled = false;
+
+      if (!res.ok) { showToast('', '❌', data.error); return; }
+
+      document.getElementById('loginOtpSentTo').textContent = '+91 ' + phone;
+      document.getElementById('loginPhoneStep1').classList.remove('active');
+      document.getElementById('loginPhoneStep2').classList.add('active');
+      document.querySelectorAll('.login-otp-box')[0].focus();
+      showToast('', '📱', 'SMS Sent successfully!');
+      setTimeout(() => showSimulatedSMS(phone, data.devOtp), 800);
+    }
+    async function resendLoginOTP() {
+      const phone = document.getElementById('loginPhoneNumber').value.trim();
+      const btn = document.querySelector('#loginPhoneStep2 .auth-resend button');
+      if(btn) { btn.textContent = 'Resending...'; btn.disabled = true; }
+      const res = await mockFetch('/api/otp/send', { method: 'POST', body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      if(btn) { btn.textContent = 'Resend OTP'; btn.disabled = false; }
+      document.querySelectorAll('.login-otp-box').forEach(b => b.value='');
+      document.querySelectorAll('.login-otp-box')[0].focus();
+      showToast('', '📱', 'New SMS sent successfully!');
+      setTimeout(() => showSimulatedSMS(phone, data.devOtp), 800);
+    }
+    function loginOtpMove(input, idx) {
+      input.value = input.value.replace(/\D/g,'').slice(-1);
+      const boxes = document.querySelectorAll('.login-otp-box');
+      if (input.value && idx < 3) boxes[idx+1].focus();
+    }
+    async function verifyLoginOTP() {
+      const boxes   = document.querySelectorAll('.login-otp-box');
+      const entered = Array.from(boxes).map(b => b.value).join('');
+      if (entered.length < 4) { showToast('', '⚠️', 'Enter all 4 digits.'); return; }
+
+      const phoneNum = document.getElementById('loginPhoneNumber').value.trim();
+      const btn = document.querySelector('#loginPhoneStep2 .auth-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Verifying... ⏳'; btn.disabled = true;
+
+      const res = await mockFetch('/api/otp/verify', { method: 'POST', body: JSON.stringify({ phone: phoneNum, otp: entered }) });
+      const data = await res.json();
+      btn.innerHTML = originalText; btn.disabled = false;
+
+      if (!res.ok) { 
+        showToast('', '❌', data.error || 'Incorrect OTP'); 
+        boxes.forEach(b => b.value=''); boxes[0].focus(); 
+        return; 
+      }
+
+      currentUserKey = _loginPhoneUser.email || _loginPhoneUser.phone;
+      setSession(currentUserKey);
+      await restoreUserData(); loadProfileFromDB(); updateAuthUI();
+      showToast('', '✅', 'Welcome back, <strong>' + (_loginPhoneUser.name || 'User') + '</strong>!');
+      goToProfile(null);
+    }
+    function backToLoginPhoneStep1() {
+      document.getElementById('loginPhoneStep2').classList.remove('active');
+      document.getElementById('loginPhoneStep1').classList.add('active');
+      document.querySelectorAll('.login-otp-box').forEach(b => b.value='');
+    }
+
+    // IMPORTANT: Replace the Client ID below with your own from Google Cloud Console:
+    // https://console.cloud.google.com/ → APIs & Services → Credentials → Create OAuth 2.0 Client ID
+    const GOOGLE_CLIENT_ID = '446985798488-ru1jfsomadmepblehfd3j5bk9966mh7h.apps.googleusercontent.com';
+
+    function googleSignIn() {
+      if (!window.google || !window.google.accounts) {
+        showToast('', '⚠️', 'Google Sign-In is loading. Please try again.');
+        return;
+      }
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid profile email',
+        callback: (tokenResponse) => {
+          if (tokenResponse.error) {
+            showToast('', '❌', 'Google Sign-In was cancelled or failed.');
+            return;
+          }
+          // Fetch user info using the access token
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+          })
+          .then(r => r.json())
+          .then(async user => {
+            const email = (user.email || '').toLowerCase();
+            await db.users.put({ email, name: user.name || '', phone:'', password:'', dob:'', address:'', city:'', picture: user.picture || '', googleId: user.sub || '' });
+            currentUserKey = email;
+            setSession(email);
+            localStorage.setItem('superstore_google_token', tokenResponse.access_token);
+            await restoreUserData();
+            loadProfileFromDB();
+            updateAuthUI();
+            showToast('', '✅', 'Welcome, <strong>' + (user.name || user.email) + '</strong>! Signed in with Google.');
+            goToProfile(null);
+          })
+          .catch(() => {
+            showToast('', '❌', 'Could not retrieve Google profile. Try again.');
+          });
+        },
+      });
+      client.requestAccessToken({ prompt: 'select_account' });
+    }
+    async function sendOTP() {
+      const name  = document.getElementById('authPhoneName').value.trim();
+      const phone = document.getElementById('authPhoneNumber').value.trim();
+      if (!name) { showToast('', '⚠️', 'Please enter your name.'); return; }
+      if (phone.length !== 10) { showToast('', '⚠️', 'Enter a valid 10-digit number.'); return; }
+      
+      const btn = document.querySelector('#phoneStep1 .auth-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Sending... ⏳'; btn.disabled = true;
+      
+      const res = await mockFetch('/api/otp/send', { method: 'POST', body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      btn.innerHTML = originalText; btn.disabled = false;
+
+      if (!res.ok) { showToast('', '❌', data.error); return; }
+
+      document.getElementById('otpSentTo').textContent = '+91 ' + phone;
+      document.getElementById('phoneStep1').classList.remove('active');
+      document.getElementById('phoneStep2').classList.add('active');
+      document.querySelectorAll('.otp-box')[0].focus();
+      showToast('', '📱', 'SMS Sent successfully!');
+      setTimeout(() => showSimulatedSMS(phone, data.devOtp), 800);
+    }
+    async function resendOTP() {
+      const phone = document.getElementById('authPhoneNumber').value.trim();
+      const btn = document.getElementById('resendBtn');
+      if(btn) { btn.textContent = 'Resending...'; btn.disabled = true; }
+      const res = await mockFetch('/api/otp/send', { method: 'POST', body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      if(btn) { btn.textContent = 'Resend OTP'; btn.disabled = false; }
+      document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+      document.querySelectorAll('.otp-box')[0].focus();
+      showToast('', '📱', 'New SMS sent successfully!');
+      setTimeout(() => showSimulatedSMS(phone, data.devOtp), 800);
+    }
+    function otpMove(input, idx) {
+      input.value = input.value.replace(/\D/g,'').slice(-1);
+      const boxes = document.querySelectorAll('.otp-box');
+      if (input.value && idx < 3) boxes[idx + 1].focus();
+    }
+    async function verifyOTP() {
+      const boxes    = document.querySelectorAll('.otp-box');
+      const entered  = Array.from(boxes).map(b => b.value).join('');
+      if (entered.length < 4) { showToast('', '⚠️', 'Enter all 4 digits.'); return; }
+
+      const phoneNum = document.getElementById('authPhoneNumber').value.trim();
+      const btn = document.querySelector('#phoneStep2 .auth-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Verifying... ⏳'; btn.disabled = true;
+
+      const res = await mockFetch('/api/otp/verify', { method: 'POST', body: JSON.stringify({ phone: phoneNum, otp: entered }) });
+      const data = await res.json();
+      btn.innerHTML = originalText; btn.disabled = false;
+
+      if (!res.ok) { 
+        showToast('', '❌', data.error || 'Incorrect OTP'); 
+        boxes.forEach(b => b.value=''); boxes[0].focus(); 
+        return; 
+      }
+
+      const name  = document.getElementById('authPhoneName').value.trim();
+      const phone = '+91 ' + phoneNum;
+      const email = phone + '@phone.local'; // synthetic key for phone-only users
+      await db.users.put({ email, name, phone, password:'', dob:'', address:'', city:'' });
+      currentUserKey = email;
+      setSession(email);
+      loadProfileFromDB();
+      updateAuthUI();
+      showToast('', '✅', 'Account created! Welcome, <strong>' + name + '</strong>.');
+      goToProfile(null);
+    }
+    function backToPhoneStep1() {
+      document.getElementById('phoneStep2').classList.remove('active');
+      document.getElementById('phoneStep1').classList.add('active');
+      document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+    }
+
+    /* ─── Profile (IndexedDB) ─── */
+    async function loadProfileFromDB() {
+      if (!currentUserKey) return;
+      const saved = await db.users.get(currentUserKey) || {};
+      document.getElementById('profileName').value    = saved.name    || '';
+      document.getElementById('profilePhone').value   = saved.phone   || '';
+      document.getElementById('profileEmail').value   = saved.email   || '';
+      document.getElementById('profileDob').value     = saved.dob     || '';
+      document.getElementById('profileAddress').value = saved.address || '';
+      document.getElementById('profileCity').value    = saved.city    || '';
+      document.getElementById('profileDisplayName').textContent  = saved.name  || 'Your Name';
+      document.getElementById('profileDisplayEmail').textContent = saved.email || 'your@email.com';
+      document.getElementById('sidebarProfileName').textContent = saved.name ? saved.name.trim() : 'My Profile';
+      document.getElementById('profileAvatar').childNodes[0].textContent = saved.name ? saved.name.trim()[0].toUpperCase() + (saved.name.trim().split(' ')[1]?.[0]?.toUpperCase() || '') : '👤';
+    }
+    async function saveProfile() {
+      if (!currentUserKey) return;
+      const updates = {
+        email:   currentUserKey, // primary key must be present for put()
+        name:    document.getElementById('profileName').value.trim(),
+        phone:   document.getElementById('profilePhone').value.trim(),
+        dob:     document.getElementById('profileDob').value,
+        address: document.getElementById('profileAddress').value.trim(),
+        city:    document.getElementById('profileCity').value.trim(),
+      };
+      // Merge with existing record to preserve password/googleId
+      const existing = await db.users.get(currentUserKey) || {};
+      await db.users.put({ ...existing, ...updates });
+      loadProfileFromDB();
+      showToast('Profile', '✅', '<strong>Profile saved</strong> successfully!');
+    }
+    function focusField(id) {
+      const el = document.getElementById(id);
+      el.focus();
+      el.select && el.select();
+    }
+
+    /* ─── Sign Out ─── */
+    function signOut(e) {
+      if (e) e.preventDefault();
+      document.getElementById('userDropdown').classList.remove('open');
+      closeSidebar();
+      if (!isLoggedIn()) {
+        showToast('', '🚪', 'You are already signed out.');
+        return;
+      }
+      // Revoke Google token if present
+      const gToken = localStorage.getItem('superstore_google_token');
+      if (gToken && window.google && window.google.accounts) {
+        google.accounts.oauth2.revoke(gToken, () => {});
+        localStorage.removeItem('superstore_google_token');
+      }
+      // Clear session (user data stays in DB for next login)
+      clearUserData();
+      currentUserKey = null;
+      clearSession();
+      // Reset all profile fields
+      ['profileName','profilePhone','profileEmail','profileDob','profileAddress','profileCity'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('profileDisplayName').textContent  = 'Your Name';
+      document.getElementById('profileDisplayEmail').textContent = 'your@email.com';
+      document.getElementById('profileAvatar').childNodes[0].textContent = '👤';
+      document.getElementById('sidebarProfileName').textContent = 'My Profile';
+      updateAuthUI();
+      goHome();
+      showToast('Signed out', '🚪', 'You have been <strong>signed out</strong>.');
+    }
+    function historyBack()          { if (histIdx > 0)                        { histIdx--; showPage(navHistory[histIdx], false); } }
+    function historyFwd()           { if (histIdx < navHistory.length - 1)    { histIdx++; showPage(navHistory[histIdx], false); } }
+
+    /* ─── Shop Filter ─── */
+    function filterShop(cat, btn) {
+      document.querySelectorAll('.filter-pill').forEach(p =>
+        p.classList.toggle('active', btn ? p === btn : (cat === 'all' ? p.textContent.toLowerCase().includes('all') : p.textContent.toLowerCase().includes(cat)))
+      );
+      document.querySelectorAll('.shop-section').forEach(s => s.style.display = (cat === 'all' || s.dataset.section === cat) ? 'block' : 'none');
+      document.querySelectorAll('.banner-card').forEach(b => b.style.display  = (cat === 'all' || b.dataset.cat === cat)     ? 'flex'  : 'none');
+      if (!document.getElementById('shop-page').classList.contains('active')) { showPage('shop'); setTimeout(() => filterShop(cat, null), 150); }
+    }
+
+    /* ─── Toast ─── */
+    function showToast(name, emoji, msg) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerHTML = `<div class="toast-icon">${emoji}</div><div class="toast-text"><strong>${name}</strong> ${msg || 'added to cart!'}</div>`;
+      c.appendChild(t);
+      void t.offsetWidth;
+      t.classList.add('show');
+      setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
+    }
+
+    /* ─── Nav dot helpers ─── */
+    function updateNavUserDot() {
+      document.getElementById('navUserDot').style.display = (cart.length > 0 || wishlist.length > 0) ? 'block' : 'none';
+    }
+    function updateCartDots() {
+      const d = document.getElementById('menuCartDot');
+      d.classList.toggle('active', cart.length > 0);
+      d.style.opacity = cart.length > 0 ? '1' : '0';
+      updateNavUserDot();
+    }
+    function updateWishlistDots() {
+      const d = document.getElementById('menuWishDot');
+      d.classList.toggle('active', wishlist.length > 0);
+      d.style.opacity = wishlist.length > 0 ? '1' : '0';
+      updateNavUserDot();
+    }
+
+    /* ─── Wishlist ─── */
+
+    document.querySelectorAll('.product-card').forEach(card => {
+      const btn = document.createElement('button');
+      btn.className = 'wishlist-heart';
+      btn.setAttribute('aria-label', 'Add to wishlist');
+      btn.innerHTML = '🤍';
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!isLoggedIn()) {
+          showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.');
+          return;
+        }
+        btn.classList.toggle('active');
+        const active = btn.classList.contains('active');
+        btn.innerHTML = active ? '❤️' : '🤍';
+        active ? addToWishlist(getProductData(card)) : removeFromWishlist(getProductId(card));
+      });
+      card.appendChild(btn);
+    });
+
+    function addToWishlist(data) {
+      if (!wishlist.find(w => w.id === data.id)) wishlist.push(data);
+      showToast(data.name, '❤️', 'added to wishlist!');
+      renderWishlistPage();
+      updateWishlistDots();
+      saveUserData();
+    }
+    function removeFromWishlist(id) {
+      wishlist = wishlist.filter(w => w.id !== id);
+      renderWishlistPage();
+      updateWishlistDots();
+      saveUserData();
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (getProductId(card) === id) {
+          const btn = card.querySelector('.wishlist-heart');
+          if (btn) { btn.classList.remove('active'); btn.innerHTML = '🤍'; }
+        }
+      });
+    }
+    function renderWishlistPage() {
+      const empty  = document.getElementById('wishlistPageEmpty');
+      const list   = document.getElementById('wishlistItemsList');
+      if (wishlist.length === 0) { empty.style.display='flex'; list.style.display='none'; return; }
+      empty.style.display = 'none';
+      list.style.display  = 'grid';
+      list.innerHTML = wishlist.map(item => {
+        const cartItem = cart.find(c => c.id === item.id);
+        const qty = cartItem ? cartItem.qty : 0;
+        const btnHTML = qty > 0
+          ? `<div class="qty-control"><button class="qty-btn minus">−</button><span class="qty-count">${qty}</span><button class="qty-btn plus">+</button></div>`
+          : `<button class="add-btn">+</button>`;
+        return `
+          <div class="product-card" data-product-id="${item.id}">
+            <button class="wishlist-heart active" onclick="event.stopPropagation();removeFromWishlist('${item.id}')">❤️</button>
+            <div class="product-emoji">${item.emoji}</div>
+            <div class="product-brand">${item.brand}</div>
+            <div class="product-name">${item.name}</div>
+            <div class="product-footer"><div class="product-price">₹${item.price}</div>${btnHTML}</div>
+          </div>`;
+      }).join('');
+      list.querySelectorAll('.add-btn').forEach(b => attachAddBtnListener(b));
+      list.querySelectorAll('.qty-control').forEach(ctrl => attachQtyListeners(ctrl));
+    }
+
+    /* ─── Cart ─── */
+
+    function getProductId(card)   { return card.querySelector('.product-name').textContent.trim(); }
+    function getProductData(card) {
+      return {
+        id:    getProductId(card),
+        emoji: card.querySelector('.product-emoji').textContent.trim(),
+        brand: card.querySelector('.product-brand').textContent.trim(),
+        name:  card.querySelector('.product-name').textContent.trim(),
+        price: parseInt(card.querySelector('.product-price').textContent.replace(/[^0-9]/g,'')),
+        qty:   1
+      };
+    }
+
+    function updateCart(id, qty) {
+      const i = cart.findIndex(c => c.id === id);
+      if (qty <= 0) { if (i !== -1) cart.splice(i,1); }
+      else          { if (i !== -1) cart[i].qty = qty; }
+      renderCartPage(); updateCartDots(); saveUserData();
+    }
+    function addToCart(card, qty, notify = true) {
+      const data = getProductData(card);
+      const i    = cart.findIndex(c => c.id === data.id);
+      if (i !== -1) cart[i].qty = qty; else { data.qty = qty; cart.push(data); }
+      if (notify) showToast(data.name, data.emoji);
+      renderCartPage(); updateCartDots(); saveUserData();
+    }
+    function removeFromCart(id) {
+      cart = cart.filter(c => c.id !== id);
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (getProductId(card) === id) {
+          const ctrl = card.querySelector('.qty-control');
+          if (ctrl) { const nb = document.createElement('button'); nb.className='add-btn'; nb.textContent='+'; ctrl.replaceWith(nb); attachAddBtnListener(nb); }
+        }
+      });
+      renderCartPage(); updateCartDots(); saveUserData();
+    }
+    function renderCartPage() {
+      const empty   = document.getElementById('cartPageEmpty');
+      const list    = document.getElementById('cartItemsList');
+      const summary = document.getElementById('cartSummary');
+      const total   = document.getElementById('cartTotalPrice');
+      if (cart.length === 0) { empty.style.display='flex'; list.style.display='none'; summary.style.display='none'; return; }
+      empty.style.display = 'none'; list.style.display = 'flex'; summary.style.display = 'flex';
+      let grand = 0;
+      list.innerHTML = cart.map(item => {
+        const sub = item.price * item.qty;
+        grand += sub;
+        return `
+          <div class="cart-item" data-cart-id="${item.id}">
+            <div class="cart-item-emoji">${item.emoji}</div>
+            <div class="cart-item-info">
+              <div class="cart-item-brand">${item.brand}</div>
+              <div class="cart-item-name">${item.name}</div>
+              <div class="cart-item-price">₹${item.price} each</div>
+            </div>
+            <div class="cart-item-qty">
+              <button class="cart-minus" onclick="cartChangeQty('${item.id}',-1)">−</button>
+              <span>${item.qty}</span>
+              <button onclick="cartChangeQty('${item.id}',1)">+</button>
+            </div>
+            <div class="cart-item-total">₹${sub}</div>
+            <button class="cart-item-remove" onclick="removeFromCart('${item.id}')" title="Remove">✕</button>
+          </div>`;
+      }).join('');
+      total.textContent = '₹' + grand;
+    }
+    function cartChangeQty(id, delta) {
+      const i = cart.findIndex(c => c.id === id);
+      if (i === -1) return;
+      cart[i].qty += delta;
+      if (cart[i].qty <= 0) { removeFromCart(id); return; }
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (getProductId(card) === id) { const el = card.querySelector('.qty-count'); if (el) el.textContent = cart[i].qty; }
+      });
+      renderCartPage();
+    }
+
+    /* ─── Qty Stepper helpers ─── */
+    function attachQtyListeners(ctrl) {
+      const plus  = ctrl.querySelector('.plus');
+      const minus = ctrl.querySelector('.minus');
+      const count = ctrl.querySelector('.qty-count');
+      const card  = ctrl.closest('.product-card');
+      plus.addEventListener('click', ev => { ev.stopPropagation(); const q = parseInt(count.textContent)+1; count.textContent=q; addToCart(card,q,false); });
+      minus.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const q = parseInt(count.textContent)-1;
+        if (q <= 0) { const nb=document.createElement('button'); nb.className='add-btn'; nb.textContent='+'; ctrl.replaceWith(nb); attachAddBtnListener(nb); updateCart(getProductId(card),0); }
+        else { count.textContent=q; addToCart(card,q,false); }
+      });
+    }
+    function attachAddBtnListener(addBtn) {
+      addBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!isLoggedIn()) {
+          showToast('', '🔑', 'Please <strong>sign in</strong> or <strong>create an account</strong> first.');
+          return;
+        }
+        const card  = addBtn.closest('.product-card');
+        const ctrl  = document.createElement('div');
+        ctrl.className = 'qty-control';
+        ctrl.innerHTML = '<button class="qty-btn minus">−</button><span class="qty-count">1</span><button class="qty-btn plus">+</button>';
+        addBtn.replaceWith(ctrl);
+        addToCart(card, 1);
+        attachQtyListeners(ctrl);
+      });
+    }
+    document.querySelectorAll('.add-btn').forEach(b => attachAddBtnListener(b));
+
+    /* ─── Init: restore session from IndexedDB ─── */
+    (async function() {
+      const sessionKey = getSession();
+      if (sessionKey) {
+        const user = await db.users.get(sessionKey);
+        if (user) {
+          currentUserKey = sessionKey;
+          await restoreUserData();
+          loadProfileFromDB();
+        } else {
+          clearSession();
+        }
+      }
+      updateAuthUI();
+    })();
+
+    /* ─── Search ─── */
+    const searchData = [
+      { emoji:'🏠', name:'Home',                        sub:'Main landing page',                  tag:'Page',    action:()=>goHome() },
+      { emoji:'🛍️', name:'Shop',                        sub:'Browse all products',                tag:'Page',    action:()=>goToShop() },
+      { emoji:'📦', name:'My Orders',                   sub:'View your order history',            tag:'Page',    action:()=>goToOrders(null) },
+      { emoji:'📞', name:'Contact Us',                  sub:'Helpline, Instagram, Gmail',         tag:'Page',    action:()=>openHelp(null) },
+      { emoji:'🥤', name:'Monster Original',            sub:'Classic energy drink',               tag:'Monster', action:()=>goHome() },
+      { emoji:'🥤', name:'Monster Ultra',               sub:'Light & refreshing, zero sugar',     tag:'Monster', action:()=>goHome() },
+      { emoji:'🥤', name:'Pipeline Punch',              sub:'All the energy, zero compromise',    tag:'Monster', action:()=>goHome() },
+      { emoji:'🥤', name:'Mango Loco',                  sub:'Tropical mango energy',              tag:'Monster', action:()=>goHome() },
+      { emoji:'⚡', name:'Monster Original 500ml',      sub:'Monster · Energy Drinks',            tag:'Energy',  action:()=>goToProduct('Monster Original 500ml','energy') },
+      { emoji:'⚡', name:'Monster Ultra White 500ml',   sub:'Monster · Energy Drinks',            tag:'Energy',  action:()=>goToProduct('Monster Ultra White 500ml','energy') },
+      { emoji:'⚡', name:'Mango Loco 500ml',            sub:'Monster · Energy Drinks',            tag:'Energy',  action:()=>goToProduct('Mango Loco 500ml','energy') },
+      { emoji:'⚡', name:'Sting Energy 250ml',          sub:'Sting · Energy Drinks',              tag:'Energy',  action:()=>goToProduct('Sting Energy 250ml','energy') },
+      { emoji:'⚡', name:'Red Bull Original 250ml',     sub:'Red Bull · Energy Drinks',           tag:'Energy',  action:()=>goToProduct('Red Bull Original 250ml','energy') },
+      { emoji:'⚡', name:'Red Bull Tropical 250ml',     sub:'Red Bull · Energy Drinks',           tag:'Energy',  action:()=>goToProduct('Red Bull Tropical 250ml','energy') },
+      { emoji:'🥤', name:'Coke Original 750ml',         sub:'Coca-Cola · Cold Drinks',            tag:'Drinks',  action:()=>goToProduct('Coke Original 750ml','soda') },
+      { emoji:'🥤', name:'Coke Zero 500ml',             sub:'Coca-Cola · Cold Drinks',            tag:'Drinks',  action:()=>goToProduct('Coke Zero 500ml','soda') },
+      { emoji:'🥤', name:'Pepsi Original 750ml',        sub:'Pepsi · Cold Drinks',                tag:'Drinks',  action:()=>goToProduct('Pepsi Original 750ml','soda') },
+      { emoji:'🥤', name:'Sprite Lemon 750ml',          sub:'Sprite · Cold Drinks',               tag:'Drinks',  action:()=>goToProduct('Sprite Lemon 750ml','soda') },
+      { emoji:'🥤', name:'Fanta Orange 500ml',          sub:'Fanta · Cold Drinks',                tag:'Drinks',  action:()=>goToProduct('Fanta Orange 500ml','soda') },
+      { emoji:'🥤', name:'7UP Nimbooz 500ml',           sub:'7UP · Cold Drinks',                  tag:'Drinks',  action:()=>goToProduct('7UP Nimbooz 500ml','soda') },
+      { emoji:'🍫', name:'Dairy Milk Silk 60g',         sub:'Cadbury · Chocolates & Candy',       tag:'Choco',   action:()=>goToProduct('Dairy Milk Silk 60g','choco') },
+      { emoji:'🍬', name:'KitKat 4-Finger 41.5g',      sub:'Nestlé · Chocolates & Candy',        tag:'Choco',   action:()=>goToProduct('KitKat 4-Finger 41.5g','choco') },
+      { emoji:'🥜', name:'Snickers 50g',                sub:'Mars · Chocolates & Candy',          tag:'Choco',   action:()=>goToProduct('Snickers 50g','choco') },
+      { emoji:'🍭', name:'5 Star Double Caramel 40g',   sub:'Cadbury · Chocolates & Candy',       tag:'Choco',   action:()=>goToProduct('5 Star Double Caramel 40g','choco') },
+      { emoji:'🤎', name:'Ferrero Rocher 3pc Box',      sub:'Ferrero · Chocolates & Candy',       tag:'Choco',   action:()=>goToProduct('Ferrero Rocher 3pc Box','choco') },
+      { emoji:'🍪', name:'Oreo Choco Creme 120g',       sub:'Oreo · Chocolates & Candy',          tag:'Choco',   action:()=>goToProduct('Oreo Choco Creme 120g','choco') },
+      { emoji:'📞', name:'9810111790',                  sub:'Our helpline number',                tag:'Contact', action:()=>openHelp(null) },
+      { emoji:'📸', name:'super_Store24.7',             sub:'Instagram handle',                   tag:'Contact', action:()=>openHelp(null) },
+      { emoji:'✉️', name:'superstore334@gmail.com',     sub:'Email us anytime',                   tag:'Contact', action:()=>openHelp(null) },
+    ];
+
+    function toggleSearch() {
+      const ov = document.getElementById('searchOverlay');
+      const open = ov.style.display === 'flex';
+      if (open) { ov.style.opacity='0'; setTimeout(()=>{ ov.style.display='none'; },250); }
+      else {
+        ov.style.display='flex'; setTimeout(()=>{ ov.style.opacity='1'; },10);
+        setTimeout(()=>{ document.getElementById('searchInput').focus(); },50);
+        document.getElementById('searchInput').value='';
+        document.getElementById('searchResults').innerHTML='';
+        document.getElementById('searchHint').style.display='block';
+      }
+    }
+    function runSearch(q) {
+      const results = document.getElementById('searchResults');
+      const hint    = document.getElementById('searchHint');
+      q = q.trim().toLowerCase();
+      if (!q) { results.innerHTML=''; hint.style.display='block'; return; }
+      hint.style.display='none';
+      const matches = searchData.filter(d => d.name.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q) || d.tag.toLowerCase().includes(q));
+      if (!matches.length) { results.innerHTML=`<div class="search-empty">No results for "<strong style="color:#f5f5f0">${q}</strong>"<br>Try searching a product, brand or page.</div>`; return; }
+      results.innerHTML = matches.map(d => `
+        <button class="search-result-item">
+          <div class="search-result-emoji">${d.emoji}</div>
+          <div><div class="search-result-name">${highlight(d.name,q)}</div><div class="search-result-sub">${d.sub}</div></div>
+          <div class="search-result-tag">${d.tag}</div>
+        </button>`).join('');
+      results.querySelectorAll('.search-result-item').forEach((btn,i) => {
+        btn.onclick = () => { toggleSearch(); setTimeout(()=>matches[i].action(),280); };
+      });
+    }
+    function highlight(text, q) {
+      const i = text.toLowerCase().indexOf(q);
+      if (i === -1) return text;
+      return text.slice(0,i) + '<mark style="background:rgba(181,255,0,0.25);color:var(--white);border-radius:2px;">' + text.slice(i,i+q.length) + '</mark>' + text.slice(i+q.length);
+    }
+    document.getElementById('searchInput').addEventListener('input', e => runSearch(e.target.value));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleSearch(); closeTnC(); closeHelp(); } });
+    document.getElementById('searchOverlay').addEventListener('click', e => { if (e.target === document.getElementById('searchOverlay')) toggleSearch(); });
+
+    /* ─── Terms & Conditions ─── */
+    function openTnC(e)  { if (e) e.preventDefault(); closeSidebar(); document.getElementById('tncOverlay').classList.add('open'); }
+    function closeTnC()  { document.getElementById('tncOverlay').classList.remove('open'); }
+    function openHelp(e) { if (e) e.preventDefault(); closeSidebar(); document.getElementById('helpOverlay').classList.add('open'); }
+    function closeHelp() { document.getElementById('helpOverlay').classList.remove('open'); }
+    function goToContact(e) { if (e) e.preventDefault(); openHelp(null); }
+
+    /* ─── Checkout ─── */
+    async function checkout() {
+      if (cart.length === 0) {
+        showToast('', '⚠️', 'Your cart is empty.');
+        return;
+      }
+      
+      if (!isLoggedIn()) {
+        showToast('', '🔑', 'Please <strong>sign in</strong> first.');
+        goToLogin(null);
+        return;
+      }
+
+      const user = await db.users.get(currentUserKey);
+      if (!user.address || user.address.trim() === '') {
+        document.getElementById('addressOverlay').classList.add('open');
+        return;
+      }
+
+      openPaymentModal();
+    }
+
+    function closeAddressModal() {
+      document.getElementById('addressOverlay').classList.remove('open');
+    }
+
+    async function saveAddressAndCheckout() {
+      const addr = document.getElementById('checkoutAddress').value.trim();
+      const city = document.getElementById('checkoutCity').value.trim();
+      if (!addr) { showToast('', '⚠️', 'Please enter your address.'); return; }
+      if (!city) { showToast('', '⚠️', 'Please enter your city/pincode.'); return; }
+
+      const user = await db.users.get(currentUserKey);
+      user.address = addr;
+      user.city = city;
+      await db.users.put(user);
+      
+      // Sync with profile fields
+      const dpAddr = document.getElementById('profileAddress');
+      const dpCity = document.getElementById('profileCity');
+      if (dpAddr) dpAddr.value = addr;
+      if (dpCity) dpCity.value = city;
+
+      closeAddressModal();
+      setTimeout(openPaymentModal, 300);
+    }
+
+    async function renderOrdersPage() {
+      const empty = document.getElementById('ordersPageEmpty');
+      const user = await db.users.get(currentUserKey);
+      const orders = user?.orders || [];
+      
+      let listContainer = document.getElementById('ordersListContainer');
+      if (!listContainer) {
+        listContainer = document.createElement('div');
+        listContainer.id = 'ordersListContainer';
+        listContainer.className = 'orders-list';
+        listContainer.style.display = 'flex';
+        listContainer.style.flexDirection = 'column';
+        listContainer.style.gap = '1.2rem';
+        listContainer.style.paddingTop = '1rem';
+        document.querySelector('#orders-page .page-body').appendChild(listContainer);
+      }
+      
+      if (orders.length === 0) {
+        empty.style.display = 'flex';
+        listContainer.style.display = 'none';
+        return;
+      }
+      
+      empty.style.display = 'none';
+      listContainer.style.display = 'flex';
+      
+      listContainer.innerHTML = orders.map(o => `
+        <div style="background:#111; border:1px solid rgba(255,255,255,0.07); border-radius:16px; padding:1.5rem;">
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:1rem; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
+            <div><div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Order ID</div><div style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--white);">${o.id}</div></div>
+            <div><div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Date</div><div style="font-size:0.9rem; color:var(--white); margin-top:0.3rem;">${new Date(o.date).toLocaleDateString()}</div></div>
+            <div>
+              <div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Status</div>
+              <div style="display:inline-block; margin-top:0.3rem; font-size:0.75rem; padding:0.2rem 0.6rem; border-radius:50px; background:${o.status.includes('Requested') ? 'rgba(255,165,0,0.1)' : 'rgba(181,255,0,0.1)'}; color:${o.status.includes('Requested') ? '#FFA500' : 'var(--green)'}; border:1px solid ${o.status.includes('Requested') ? 'rgba(255,165,0,0.2)' : 'rgba(181,255,0,0.2)'};">${o.status}</div>
+            </div>
+            <div style="text-align:right;"><div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Total Amount</div><div style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--green);">₹${o.total}</div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:0.5rem;">
+            ${o.items.map(item => `
+              <div style="display:flex; align-items:center; gap:1rem;">
+                <div style="font-size:1.5rem; background:rgba(255,255,255,0.04); border-radius:10px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">${item.emoji}</div>
+                <div style="flex:1;"><div style="font-size:0.85rem; color:var(--white);">${item.name}</div><div style="font-size:0.75rem; color:var(--muted);">Qty: ${item.qty} × ₹${item.price}</div></div>
+                <div style="font-size:0.95rem; color:var(--white); font-weight:500;">₹${item.qty * item.price}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.06); font-size:0.8rem; color:var(--muted); display:flex; justify-content:space-between; flex-wrap:wrap; align-items:center; gap:1rem;">
+            <div>
+              <strong>Delivery to:</strong> ${o.address}, ${o.city}
+              ${!o.status.includes('Requested') ? '<div style="color:var(--green); margin-top:0.3rem;"><strong>Expected Delivery:</strong> 3-5 Days</div>' : '<div style="color:#FFA500; margin-top:0.3rem;"><strong>Reviewing request...</strong></div>'}
+            </div>
+            ${!o.status.includes('Requested') ? `<button class="auth-btn auth-btn-primary" style="padding:0.6rem 1rem; border-radius:8px; font-size:0.75rem; background:rgba(255,255,255,0.08); color:var(--white); border:none; cursor:pointer;" onclick="openCancelModal('${o.id}')">Cancel / Replace</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    let currentCancelOrderId = null;
+    let currentCancelMode = 'cancel'; // 'cancel' or 'replace'
+
+    function switchCancelTab(mode) {
+      currentCancelMode = mode;
+      const tc = document.getElementById('tabCancel');
+      const tr = document.getElementById('tabReplace');
+      const proof = document.getElementById('replaceProofBlock');
+      const label = document.getElementById('cancelReasonLabel');
+
+      if (mode === 'cancel') {
+        tc.style.background = 'var(--white)'; tc.style.color = 'var(--black)';
+        tr.style.background = 'transparent'; tr.style.color = 'var(--muted)';
+        proof.style.display = 'none';
+        label.textContent = 'Reason for Cancellation';
+      } else {
+        tr.style.background = 'var(--white)'; tr.style.color = 'var(--black)';
+        tc.style.background = 'transparent'; tc.style.color = 'var(--muted)';
+        proof.style.display = 'block';
+        label.textContent = 'Reason for Replacement';
+      }
+    }
+
+    function openCancelModal(orderId) {
+      currentCancelOrderId = orderId;
+      document.getElementById('cancelModalSub').textContent = 'Order ID: ' + orderId;
+      document.getElementById('cancelReason').value = '';
+      document.getElementById('cancelPhoto').value = '';
+      document.getElementById('cancelFileName').textContent = 'Tap to upload image';
+      
+      switchCancelTab('cancel');
+      document.getElementById('cancelSubmitBtn').innerHTML = 'Submit Request';
+      document.getElementById('cancelSubmitBtn').disabled = false;
+      document.getElementById('cancelModalOverlay').classList.add('open');
+    }
+
+    function closeCancelModal() {
+      document.getElementById('cancelModalOverlay').classList.remove('open');
+    }
+
+    function submitCancelReplace() {
+      const reason = document.getElementById('cancelReason').value.trim();
+      const photo = document.getElementById('cancelPhoto').files[0];
+
+      if (!reason) { showToast('', '⚠️', 'Please provide a reason.'); return; }
+      if (currentCancelMode === 'replace' && !photo) { showToast('', '⚠️', 'Please upload a photo proof for replacement.'); return; }
+
+      const btn = document.getElementById('cancelSubmitBtn');
+      btn.innerHTML = 'Submitting... ⏳';
+      btn.disabled = true;
+
+      setTimeout(async () => {
+        const user = await db.users.get(currentUserKey);
+        let orderDetails = '';
+        if (user && user.orders) {
+          const idx = user.orders.findIndex(o => o.id === currentCancelOrderId);
+          if (idx !== -1) {
+            user.orders[idx].status = currentCancelMode === 'cancel' ? 'Cancellation Requested' : 'Replacement Requested';
+            user.orders[idx].cancelReason = reason;
+            if (currentCancelMode === 'replace' && photo) { user.orders[idx].proofFile = photo.name; }
+            orderDetails = user.orders[idx].items.map(i => `${i.qty}x ${i.name}`).join(', ');
+            await db.users.put(user);
+          }
+        }
+        
+        try {
+          const formData = new FormData();
+          formData.append('_subject', `Order ${currentCancelMode === 'cancel' ? 'Cancellation' : 'Replacement'} Request! ${currentCancelOrderId}`);
+          formData.append('_template', 'box');
+          formData.append('email', user?.email || '');
+          formData.append('Customer_Name', user?.name || 'Not provided');
+          formData.append('Customer_Email', user?.email || '');
+          formData.append('Order_ID', currentCancelOrderId);
+          formData.append('Order_Items', orderDetails);
+          formData.append('Request_Type', currentCancelMode === 'cancel' ? 'Cancellation' : 'Replacement');
+          formData.append('Reason', reason);
+          if (currentCancelMode === 'replace' && photo) {
+            formData.append('Attached_Proof', photo);
+          }
+          await fetch('https://formsubmit.co/ajax/utsavpandey2008@gmail.com', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: formData
+          });
+        } catch (e) {
+          console.error("Failed to send cancel/replace email", e);
+        }
+        
+        btn.innerHTML = 'Success ✅';
+        setTimeout(() => {
+          closeCancelModal();
+          renderOrdersPage();
+          showToast('Request Sent', '📝', 'Your request has been submitted for review.');
+        }, 800);
+      }, 1500);
+    }
+
+    let currentPayTab = 'card';
+
+    function switchPayTab(tab) {
+      currentPayTab = tab;
+      const tc = document.getElementById('tabCard');
+      const tu = document.getElementById('tabUpi');
+      const cBlk = document.getElementById('payCardBlock');
+      const uBlk = document.getElementById('payUpiBlock');
+      
+      if (tab === 'card') {
+        tc.style.background = 'var(--white)'; tc.style.color = 'var(--black)';
+        tu.style.background = 'transparent'; tu.style.color = 'var(--muted)';
+        cBlk.style.display = 'block'; uBlk.style.display = 'none';
+        
+        const gtotal = cart.reduce((acc, c) => acc + (c.price * c.qty), 0);
+        document.getElementById('payBtn').innerHTML = 'Pay ₹' + gtotal;
+      } else {
+        tu.style.background = 'var(--white)'; tu.style.color = 'var(--black)';
+        tc.style.background = 'transparent'; tc.style.color = 'var(--muted)';
+        uBlk.style.display = 'block'; cBlk.style.display = 'none';
+        
+        document.getElementById('payBtn').innerHTML = 'Verify UPI Payment';
+      }
+    }
+
+    function openPaymentModal() {
+      const gtotal = cart.reduce((acc, c) => acc + (c.price * c.qty), 0);
+      document.getElementById('paymentAmountSub').textContent = 'Total amount to pay: ₹' + gtotal;
+      
+      // Update dynamic QR Code
+      const qrData = `upi://pay?pa=utsavpandey2008@oksbi&pn=SuperStore&am=${gtotal}&cu=INR`;
+      document.getElementById('upiQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrData)}`;
+
+      document.getElementById('payCardNum').value = '';
+      document.getElementById('payCardExp').value = '';
+      document.getElementById('payCardCvv').value = '';
+      document.getElementById('payUpiId').value = '';
+      
+      switchPayTab('card');
+
+      const btn = document.getElementById('payBtn');
+      btn.disabled = false;
+      btn.style.background = 'var(--green)';
+      btn.style.color = 'var(--black)';
+
+      document.getElementById('paymentOverlay').classList.add('open');
+    }
+
+    function closePaymentModal() {
+      document.getElementById('paymentOverlay').classList.remove('open');
+    }
+
+    function formatCard(el) {
+      let v = el.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+      let matches = v.match(/\d{4,16}/g);
+      let match = matches && matches[0] || v;
+      let parts = [];
+      for (let i=0, len=match.length; i<len; i+=4) {
+        parts.push(match.substring(i, i+4));
+      }
+      if (parts.length) { el.value = parts.join(' '); } else { el.value = v; }
+    }
+
+    function formatExp(el) {
+      let v = el.value.replace(/\D/g, '');
+      if (v.length >= 2) { el.value = v.substring(0,2) + '/' + v.substring(2,4); }
+      else { el.value = v; }
+    }
+
+    function processPayment() {
+      if (currentPayTab === 'card') {
+        const cnum = document.getElementById('payCardNum').value;
+        const cexp = document.getElementById('payCardExp').value;
+        const ccvv = document.getElementById('payCardCvv').value;
+
+        if(cnum.length < 19) { showToast('', '⚠️', 'Please enter a valid 16-digit card number'); return; }
+        if(cexp.length < 5) { showToast('', '⚠️', 'Please enter a valid expiry (MM/YY)'); return; }
+        if(ccvv.length < 3) { showToast('', '⚠️', 'Please enter your 3-digit CVV'); return; }
+      }
+
+      const btn = document.getElementById('payBtn');
+      btn.innerHTML = 'Authenticating... 🔒';
+      btn.disabled = true;
+
+      // Fake network delay for payment processing
+      setTimeout(() => {
+        btn.innerHTML = 'Payment Successful ✅';
+        btn.style.background = '#4CAF50';
+        btn.style.color = 'white';
+
+        setTimeout(() => {
+          closePaymentModal();
+          processOrder();
+        }, 800);
+      }, 2000);
+    }
+
+    async function processOrder() {
+      const btn = document.querySelector('#cartSummary .btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Processing... ⏳';
+      btn.disabled = true;
+
+      const user = await db.users.get(currentUserKey);
+      const orderData = {
+        id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
+        date: new Date().toISOString(),
+        items: [...cart],
+        total: cart.reduce((acc, c) => acc + (c.price * c.qty), 0),
+        address: user.address,
+        city: user.city,
+        status: 'Confirmed'
+      };
+
+      try {
+        const payload = new FormData();
+        payload.append('_subject', `New Order Received! ${orderData.id}`);
+        payload.append('_template', 'box');
+        payload.append('_captcha', 'false');
+        payload.append('email', user.email);
+        payload.append('Customer_Name', user.name || 'Not provided');
+        payload.append('Customer_Email', user.email);
+        payload.append('Customer_Phone', user.phone || 'Not provided');
+        payload.append('Delivery_Address', `${user.address}, ${user.city}`);
+        payload.append('Order_ID', orderData.id);
+        payload.append('Total_Amount', `₹${orderData.total}`);
+        payload.append('Items', orderData.items.map(i => `${i.qty}x ${i.name} (₹${i.price})`).join(' | '));
+
+        await fetch('https://formsubmit.co/ajax/utsavpandey2008@gmail.com', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: payload
+        });
+      } catch (e) { console.error("Email send failed", e); }
+
+      user.orders = user.orders || [];
+      user.orders.unshift(orderData);
+      await db.users.put(user);
+
+      cart = [];
+      await saveUserData();
+      renderCartPage();
+      updateCartDots();
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      showToast('Success', '🎉', 'Order placed successfully to your address!');
+      
+      setTimeout(() => goToOrders(null), 1000);
+    }
+
+    /* ─── Go To Product ─── */
+    function goToProduct(productName, cat) {
+      goToShop();
+      setTimeout(() => {
+        filterShop(cat, null);
+        setTimeout(() => {
+          // Find the product card by matching its .product-name text
+          const cards = document.querySelectorAll('.product-card');
+          let target = null;
+          cards.forEach(card => {
+            const nameEl = card.querySelector('.product-name');
+            if (nameEl && nameEl.textContent.trim() === productName) target = card;
+          });
+          if (!target) return;
+          // Scroll into view
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Pulse highlight animation
+          target.classList.add('product-highlight');
+          setTimeout(() => target.classList.remove('product-highlight'), 1800);
+        }, 200);
+      }, 150);
+    }
+
+  </script>
+
+  <!-- ░░ HELP MODAL ░░ -->
+  <div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)closeHelp()">
+    <div class="help-modal">
+      <div class="help-modal-header">
+        <div>
+          <div class="help-modal-title">Get In <span>Touch</span></div>
+          <div class="help-modal-sub">Have a question or need help? Reach out to us on any of the channels below — we're always happy to assist!</div>
+        </div>
+        <button class="help-close" onclick="closeHelp()">✕</button>
+      </div>
+      <div class="help-modal-body">
+        <a class="contact-card" href="tel:9810111790">
+          <div class="contact-card-icon">📞</div>
+          <div class="contact-card-body">
+            <div class="contact-card-label">Helpline</div>
+            <div class="contact-card-value">+91 98101 11790</div>
+            <div class="contact-card-hint">Tap to call us directly</div>
+          </div>
+          <div class="contact-card-arrow">→</div>
+        </a>
+        <a class="contact-card insta" href="https://instagram.com/super_Store24.7" target="_blank" rel="noopener">
+          <div class="contact-card-icon">📸</div>
+          <div class="contact-card-body">
+            <div class="contact-card-label">Instagram</div>
+            <div class="contact-card-value">@super_Store24.7</div>
+            <div class="contact-card-hint">DM us on Instagram</div>
+          </div>
+          <div class="contact-card-arrow">→</div>
+        </a>
+        <a class="contact-card gmail" href="/cdn-cgi/l/email-protection#0a797f7a6f78797e65786f39393e4a6d676b636624696567">
+          <div class="contact-card-icon">✉️</div>
+          <div class="contact-card-body">
+            <div class="contact-card-label">Gmail</div>
+            <div class="contact-card-value"><span class="__cf_email__" data-cfemail="ea9f9e998b9c9a8b848e8f93d8dadad2aa8d878b8386c4898587">[email&#160;protected]</span></div>
+            <div class="contact-card-hint">Send us an email anytime</div>
+          </div>
+          <div class="contact-card-arrow">→</div>
+        </a>
+        <div class="contact-hours">
+          <div class="contact-hours-icon">🕐</div>
+          <div class="contact-hours-text">We're available <strong>24 hours a day, 7 days a week</strong>. Our team typically responds within a few minutes. Feel free to reach out anytime!</div>
+        </div>
+
+        <!-- ░░ EMAIL ACTIVATION ░░ -->
+        <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px dashed rgba(255,255,255,0.1);">
+          <div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.8rem; text-align:center;">System Settings</div>
+          <form action="https://formsubmit.co/utsavpandey2008@gmail.com" method="POST" target="_blank">
+            <input type="hidden" name="_subject" value="Email Gateway Activated!">
+            <input type="hidden" name="Message" value="This request was sent to activate the background email service for Super Store.">
+            <button type="submit" class="auth-btn" style="width:100%; background:rgba(181,255,0,0.1); border:1px solid var(--green); color:var(--green); padding:0.8rem; border-radius:12px; font-weight:600; cursor:pointer; font-size:0.8rem;">Verify & Activate Email Gateway</button>
+          </form>
+          <div style="font-size:0.65rem; color:var(--muted); margin-top:0.6rem; text-align:center; line-height:1.4;">
+            Click once to pass the CAPTCHA on the FormSubmit website. This is required <strong>only once</strong> to enable background order emails.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░ ADDRESS MODAL ░░ -->
+  <div class="help-overlay" id="addressOverlay" onclick="if(event.target===this)closeAddressModal()">
+    <div class="help-modal" style="max-width: 480px;">
+      <div class="help-modal-header">
+        <div>
+          <div class="help-modal-title">Delivery <span>Address</span></div>
+          <div class="help-modal-sub">Where should we deliver your power-packed order?</div>
+        </div>
+        <button class="help-close" onclick="closeAddressModal()">✕</button>
+      </div>
+      <div class="help-modal-body">
+        <div class="auth-field">
+          <label style="color:var(--muted); font-size: 0.75rem; text-transform:uppercase; letter-spacing:0.1em; display:block; margin-bottom:0.5rem;">Address Line</label>
+          <div class="auth-field-row" style="display:flex; align-items:center; gap:0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; padding:0.85rem 1.1rem; margin-bottom:1rem;">
+            <span class="auth-field-icon" style="font-size:1.05rem;">🏠</span>
+            <input type="text" id="checkoutAddress" placeholder="House no., Street, Area" style="flex:1; background:none; border:none; outline:none; color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.9rem;" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label style="color:var(--muted); font-size: 0.75rem; text-transform:uppercase; letter-spacing:0.1em; display:block; margin-bottom:0.5rem;">City / Pincode</label>
+          <div class="auth-field-row" style="display:flex; align-items:center; gap:0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; padding:0.85rem 1.1rem; margin-bottom:1.5rem;">
+            <span class="auth-field-icon" style="font-size:1.05rem;">📍</span>
+            <input type="text" id="checkoutCity" placeholder="City - Pincode" style="flex:1; background:none; border:none; outline:none; color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.9rem;" />
+          </div>
+        </div>
+        <button class="auth-btn auth-btn-primary" style="width:100%; padding:0.95rem; border-radius:50px; background:var(--green); color:var(--black); font-size:0.85rem; font-weight:700; border:none; cursor:pointer;" onclick="saveAddressAndCheckout()">Save & Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░ PAYMENT MODAL ░░ -->
+  <div class="tnc-overlay" id="paymentOverlay" onclick="if(event.target===this)closePaymentModal()">
+    <div class="tnc-modal" style="max-width: 440px;">
+      <div class="tnc-modal-header">
+        <div>
+          <div class="tnc-modal-title">Complete <span>Payment</span></div>
+          <div class="tnc-modal-sub" id="paymentAmountSub">Total amount to pay: ₹0</div>
+        </div>
+        <button class="tnc-close" onclick="closePaymentModal()">✕</button>
+      </div>
+      <div class="tnc-body" style="padding: 1.5rem 1.8rem;">
+        
+        <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; background:rgba(255,255,255,0.04); padding:4px; border-radius:12px;">
+          <button class="pay-tab active" id="tabCard" onclick="switchPayTab('card')" style="flex:1; padding:0.6rem; border-radius:8px; border:none; background:var(--white); color:var(--black); font-weight:600; font-size:0.8rem; cursor:pointer; transition:0.3s;">Credit / Debit Card</button>
+          <button class="pay-tab" id="tabUpi" onclick="switchPayTab('upi')" style="flex:1; padding:0.6rem; border-radius:8px; border:none; background:transparent; color:var(--muted); font-weight:600; font-size:0.8rem; cursor:pointer; transition:0.3s;">UPI / QR</button>
+        </div>
+
+        <div id="payCardBlock" style="background:linear-gradient(135deg, #111, #1a1a1a); border: 1px solid rgba(181,255,0,0.3); border-radius:16px; padding: 1.2rem; margin-bottom: 1.5rem; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:-20px; right:-20px; font-size: 6rem; opacity:0.03; font-family:'Bebas Neue',sans-serif; line-height:1;">CARD</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+            <div style="font-size:0.8rem; letter-spacing:0.1em; color:var(--green); text-transform:uppercase;">Super Card</div>
+            <div style="font-size:1.5rem;">💳</div>
+          </div>
+          <input type="tel" id="payCardNum" placeholder="0000 0000 0000 0000" maxlength="19" oninput="formatCard(this)" style="width:100%; background:none; border:none; outline:none; color:var(--white); font-family:'Bebas Neue',sans-serif; font-size:1.6rem; letter-spacing:0.1em; caret-color:var(--green); margin-bottom: 1rem;" />
+          <div style="display:flex; gap:1.5rem;">
+            <div style="flex:1;">
+              <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">Expiry</div>
+              <input type="text" id="payCardExp" placeholder="MM/YY" maxlength="5" oninput="formatExp(this)" style="width:100%; background:none; border:none; outline:none; color:var(--white); font-size:0.95rem; caret-color:var(--green); margin-top:0.3rem;" />
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;">CVV</div>
+              <input type="password" id="payCardCvv" placeholder="•••" maxlength="3" style="width:100%; background:none; border:none; outline:none; color:var(--white); font-size:0.95rem; caret-color:var(--green); margin-top:0.3rem;" />
+            </div>
+          </div>
+        </div>
+
+        <div id="payUpiBlock" style="display:none; text-align:center; padding: 0.5rem 1rem 1.5rem;">
+          <div style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">Scan with any UPI app (GPay, PhonePe, Paytm)</div>
+          <div style="background:#fff; padding:10px; border-radius:12px; display:inline-block; margin-bottom:1rem;">
+            <img id="upiQrImg" src="" alt="UPI QR Code" style="width:160px; height:160px; display:block;" />
+          </div>
+          <div style="font-size:0.8rem; color:var(--muted); margin-top:0.5rem;">Or click Pay after scanning QR:</div>
+          <input type="text" id="payUpiId" placeholder="username@bank (Optional)" style="width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:0.85rem 1.1rem; color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.9rem; margin-top:0.5rem; outline:none; text-align:center;" />
+        </div>
+        
+        <button class="auth-btn auth-btn-primary" id="payBtn" style="width:100%; padding:0.95rem; border-radius:50px; background:var(--green); color:var(--black); font-size:0.85rem; font-weight:700; border:none; cursor:pointer;" onclick="processPayment()">Pay Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░ CANCEL/REPLACE MODAL ░░ -->
+  <div class="tnc-overlay" id="cancelModalOverlay" onclick="if(event.target===this)closeCancelModal()">
+    <div class="tnc-modal" style="max-width: 440px;">
+      <div class="tnc-modal-header">
+        <div>
+          <div class="tnc-modal-title">Help with <span>Order</span></div>
+          <div class="tnc-modal-sub" id="cancelModalSub">Order ID: -</div>
+        </div>
+        <button class="tnc-close" onclick="closeCancelModal()">✕</button>
+      </div>
+      <div class="tnc-body" style="padding: 1.5rem 1.8rem;">
+        
+        <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; background:rgba(255,255,255,0.04); padding:4px; border-radius:12px;">
+          <button class="pay-tab active" id="tabCancel" onclick="switchCancelTab('cancel')" style="flex:1; padding:0.6rem; border-radius:8px; border:none; background:var(--white); color:var(--black); font-weight:600; font-size:0.8rem; cursor:pointer; transition:0.3s;">Cancel Order</button>
+          <button class="pay-tab" id="tabReplace" onclick="switchCancelTab('replace')" style="flex:1; padding:0.6rem; border-radius:8px; border:none; background:transparent; color:var(--muted); font-weight:600; font-size:0.8rem; cursor:pointer; transition:0.3s;">Replace Order</button>
+        </div>
+
+        <div style="margin-bottom:1.2rem;">
+          <div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.5rem;" id="cancelReasonLabel">Reason for Cancellation</div>
+          <textarea id="cancelReason" rows="3" placeholder="Please tell us why..." style="width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:0.85rem; color:var(--white); font-family:'DM Sans',sans-serif; font-size:0.9rem; outline:none; resize:vertical;"></textarea>
+        </div>
+
+        <div id="replaceProofBlock" style="margin-bottom:1.5rem; display:none;">
+          <div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:0.5rem;">Photo Proof (Required for Replacement)</div>
+          <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.15); border-radius:12px; padding:1.5rem; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+            <div style="font-size:1.8rem; margin-bottom:0.5rem;">📸</div>
+            <div style="font-size:0.85rem; color:var(--green); font-weight:600;" id="cancelFileName">Tap to upload image</div>
+            <div style="font-size:0.7rem; color:var(--muted); margin-top:0.3rem;">JPG, PNG or WEBP</div>
+            <input type="file" id="cancelPhoto" accept="image/*" style="display:none;" onchange="document.getElementById('cancelFileName').textContent = this.files[0] ? this.files[0].name : 'Tap to upload image';" />
+          </label>
+        </div>
+        
+        <button class="auth-btn auth-btn-primary" id="cancelSubmitBtn" style="width:100%; padding:0.95rem; border-radius:50px; background:var(--green); color:var(--black); font-size:0.85rem; font-weight:700; border:none; cursor:pointer;" onclick="submitCancelReplace()">Submit Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░ T&C MODAL ░░ -->
+  <div class="tnc-overlay" id="tncOverlay" onclick="if(event.target===this)closeTnC()">
+    <div class="tnc-modal">
+      <div class="tnc-modal-header">
+        <div>
+          <div class="tnc-modal-title">Terms &amp; <span>Conditions</span></div>
+          <div class="tnc-modal-sub">Effective January 1, 2026 · Super Store</div>
+        </div>
+        <button class="tnc-close" onclick="closeTnC()">✕</button>
+      </div>
+      <div class="tnc-body">
+        <div class="tnc-section">
+          <div class="tnc-section-title">1. Acceptance of Terms</div>
+          <p>By accessing or using Super Store's website or placing any order, you confirm that you have read, understood, and agree to be bound by these Terms &amp; Conditions. If you do not agree, please refrain from using our services.</p>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">2. Products &amp; Pricing</div>
+          <p>All product prices are listed in Indian Rupees (₹) and are inclusive of applicable taxes. We reserve the right to modify prices at any time without prior notice. Product availability is subject to stock levels and may change without warning.</p>
+          <div class="tnc-highlight">⚠️ Images are for illustration purposes only. Actual product packaging may vary slightly from what is displayed on the website.</div>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">3. Orders &amp; Payments</div>
+          <p>Placing an item in your cart does not guarantee its availability. Orders are confirmed only upon successful payment processing. Super Store reserves the right to cancel any order if payment cannot be verified or if a product is found to be out of stock after an order is placed.</p>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">4. Delivery &amp; Returns</div>
+          <p>Delivery timelines are estimates and may vary based on location and availability. We currently deliver within selected areas of Ghaziabad, Uttar Pradesh. Returns or exchanges are accepted within 24 hours of delivery for damaged or incorrect items only. Perishable goods are non-returnable.</p>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">5. User Conduct</div>
+          <p>Users agree not to misuse the platform, attempt unauthorised access, or use the service for any unlawful purpose. Any activity that disrupts or interferes with the proper functioning of Super Store will result in immediate suspension of access.</p>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">6. Privacy &amp; Data</div>
+          <p>Super Store collects minimal personal data solely for order fulfilment and communication purposes. Your data will never be sold to third parties. By using our service, you consent to the collection and use of information as described in our Privacy Policy.</p>
+          <div class="tnc-highlight">📞 For any data-related queries, contact us at <a href="mailto:support@superstore.in" style="color:var(--green);">support@superstore.in</a> or call 9810111790.</div>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">7. Limitation of Liability</div>
+          <p>Super Store shall not be held liable for any indirect, incidental, or consequential damages arising from the use of our services. Our maximum liability is limited to the value of the order placed by the user.</p>
+        </div>
+        <div class="tnc-section">
+          <div class="tnc-section-title">8. Changes to Terms</div>
+          <p>We may update these Terms &amp; Conditions from time to time. Continued use of the platform after changes constitutes acceptance of the revised terms. We encourage you to review these Terms periodically.</p>
+        </div>
+      </div>
+      <div class="tnc-footer">
+        <span class="tnc-footer-note">© 2026 Super Store · Ghaziabad, UP</span>
+        <button class="tnc-accept-btn" onclick="closeTnC()">I Understand</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
